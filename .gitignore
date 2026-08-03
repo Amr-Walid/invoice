@@ -1,0 +1,40 @@
+## .NET
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.userprefs
+project.lock.json
+artifacts/
+
+## قواعد بيانات التطوير المحلية (SQLite)
+*.db
+*.db-shm
+*.db-wal
+
+## السجلات
+*.log
+app.log
+
+## Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.swp
+
+## نظام التشغيل
+.DS_Store
+Thumbs.db
+
+## بايثون (أدوات الاختبار)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+## ملفات تفريغ الأعطال (core dumps)
+core
+core.*
+*.core
