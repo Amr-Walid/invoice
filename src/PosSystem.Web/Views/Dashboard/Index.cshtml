@@ -1,0 +1,249 @@
+@model PosSystem.Web.Models.ViewModels.AdminDashboardVm
+@{
+    ViewData["Title"] = "لوحة التحكم";
+    var maxDay = Model.Last7Days.Any() ? Model.Last7Days.Max(d => d.NetSales) : 0m;
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-speedometer2"></i> لوحة التحكم
+    </h1>
+    <span class="text-muted num" style="font-size:.9rem">
+        <i class="bi bi-calendar3"></i> @DateTime.Now.ToString("yyyy-MM-dd HH:mm")
+    </span>
+</div>
+
+<!-- ============ إحصائيات اليوم ============ -->
+<h2 class="h6 fw-bold text-muted mb-2"><i class="bi bi-sun"></i> اليوم</h2>
+<div class="stat-grid mb-4">
+    <div class="stat green">
+        <div class="stat-label"><i class="bi bi-receipt"></i> فواتير اليوم</div>
+        <div class="stat-value num">@Model.Today.InvoiceCount</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label"><i class="bi bi-cash-stack"></i> مبيعات اليوم</div>
+        <div class="stat-value num">@Model.Today.NetSales.ToString("N2")</div>
+    </div>
+    <div class="stat purple">
+        <div class="stat-label"><i class="bi bi-box-seam"></i> قطع مباعة اليوم</div>
+        <div class="stat-value num">@Model.Today.ItemsSold</div>
+    </div>
+    <div class="stat red">
+        <div class="stat-label"><i class="bi bi-tag"></i> خصومات اليوم</div>
+        <div class="stat-value num">@Model.Today.TotalDiscount.ToString("N2")</div>
+    </div>
+</div>
+
+<!-- ============ إحصائيات الشهر ============ -->
+<h2 class="h6 fw-bold text-muted mb-2"><i class="bi bi-calendar-month"></i> هذا الشهر</h2>
+<div class="stat-grid mb-4">
+    <div class="stat green">
+        <div class="stat-label"><i class="bi bi-receipt"></i> عدد الفواتير</div>
+        <div class="stat-value num">@Model.Month.InvoiceCount</div>
+        <div class="stat-extra">متوسط الفاتورة <span class="num">@Model.Month.AverageInvoice.ToString("N2")</span></div>
+    </div>
+    <div class="stat">
+        <div class="stat-label"><i class="bi bi-cash-stack"></i> صافي المبيعات</div>
+        <div class="stat-value num">@Model.Month.NetSales.ToString("N2")</div>
+        <div class="stat-extra">قبل الخصم <span class="num">@Model.Month.GrossSales.ToString("N2")</span></div>
+    </div>
+    <div class="stat orange">
+        <div class="stat-label"><i class="bi bi-tag"></i> إجمالي الخصومات</div>
+        <div class="stat-value num">@Model.Month.TotalDiscount.ToString("N2")</div>
+    </div>
+    <div class="stat purple">
+        <div class="stat-label"><i class="bi bi-box-seam"></i> القطع المباعة</div>
+        <div class="stat-value num">@Model.Month.ItemsSold</div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- ============ مبيعات آخر 7 أيام ============ -->
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span><i class="bi bi-graph-up"></i> مبيعات آخر 7 أيام</span>
+                @if (maxDay > 0)
+                {
+                    <span class="text-muted num" style="font-size:.8rem;font-weight:600">
+                        الإجمالي @Model.Last7Days.Sum(d => d.NetSales).ToString("N2") ج.م
+                    </span>
+                }
+            </div>
+            <div class="card-body">
+                @if (maxDay == 0)
+                {
+                    <div class="empty-state"><i class="bi bi-graph-up"></i> لا توجد مبيعات في آخر 7 أيام</div>
+                }
+                else
+                {
+                    <partial name="_SalesLineChart" model="Model.Last7Days" />
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ روابط سريعة ============ -->
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-lightning-charge"></i> إدارة سريعة</div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <a class="btn btn-outline-primary w-100 touch-btn" asp-controller="Products" asp-action="Create">
+                            <i class="bi bi-plus-circle"></i> منتج جديد
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a class="btn btn-outline-primary w-100 touch-btn" asp-controller="Coupons" asp-action="Create">
+                            <i class="bi bi-ticket-perforated"></i> كود خصم
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a class="btn btn-outline-secondary w-100 touch-btn" asp-controller="Brands" asp-action="Index">
+                            <i class="bi bi-award"></i> البراندات <span class="num">(@Model.BrandCount)</span>
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a class="btn btn-outline-secondary w-100 touch-btn" asp-controller="Categories" asp-action="Index">
+                            <i class="bi bi-tags"></i> التصنيفات <span class="num">(@Model.CategoryCount)</span>
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a class="btn btn-outline-secondary w-100 touch-btn" asp-controller="Products" asp-action="Index">
+                            <i class="bi bi-box"></i> المنتجات <span class="num">(@Model.ProductCount)</span>
+                        </a>
+                    </div>
+                    <div class="col-6">
+                        <a class="btn btn-outline-secondary w-100 touch-btn" asp-controller="Users" asp-action="Index">
+                            <i class="bi bi-people"></i> المستخدمون <span class="num">(@Model.AgentCount)</span>
+                        </a>
+                    </div>
+                    <div class="col-12">
+                        <a class="btn btn-success w-100 touch-btn" asp-controller="Pos" asp-action="Index">
+                            <i class="bi bi-upc-scan"></i> فتح نقطة البيع
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ الأكثر مبيعًا ============ -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-trophy"></i> الأكثر مبيعًا هذا الشهر</span>
+                <a asp-controller="Reports" asp-action="TopProducts" asp-route-Period="3"
+                   class="btn btn-sm btn-outline-primary">الكل</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr><th>المنتج</th><th style="width:80px">الكمية</th><th style="width:110px">الإيراد</th></tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.TopProducts.Any())
+                        {
+                            <tr><td colspan="3" class="empty-state"><i class="bi bi-inbox"></i> لا توجد مبيعات</td></tr>
+                        }
+                        else
+                        {
+                            foreach (var p in Model.TopProducts)
+                            {
+                                <tr>
+                                    <td class="fw-semibold">@p.ProductName</td>
+                                    <td><strong class="num">@p.QuantitySold</strong></td>
+                                    <td class="num text-success fw-bold">@p.Revenue.ToString("N2")</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ أداء المناديب ============ -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-person-badge"></i> أداء المناديب هذا الشهر</div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr><th>المندوب</th><th style="width:90px">الفواتير</th><th style="width:140px">المبيعات</th></tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.AgentPerformance.Any())
+                        {
+                            <tr><td colspan="3" class="empty-state"><i class="bi bi-inbox"></i> لا توجد مبيعات</td></tr>
+                        }
+                        else
+                        {
+                            foreach (var a in Model.AgentPerformance)
+                            {
+                                <tr>
+                                    <td><span class="badge badge-soft-blue">@a.AgentName</span></td>
+                                    <td class="num">@a.InvoiceCount</td>
+                                    <td class="num fw-bold">@a.NetSales.ToString("N2")</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ تنبيه نقص المخزون ============ -->
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="text-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i> منتجات وشك النفاد
+                </span>
+                <a asp-controller="Products" asp-action="Index" asp-route-lowStock="true"
+                   class="btn btn-sm btn-outline-danger">عرض الكل</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>المنتج</th><th>الباركود</th><th>البراند</th><th>التصنيف</th>
+                            <th style="width:110px">المتاح</th><th style="width:90px">حد التنبيه</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.LowStockProducts.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    <i class="bi bi-check-circle text-success"></i>
+                                    كل المنتجات بمخزون كافٍ
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            foreach (var p in Model.LowStockProducts)
+                            {
+                                <tr>
+                                    <td class="fw-semibold">@p.Name</td>
+                                    <td class="num barcode-text text-muted">@p.Barcode</td>
+                                    <td>@(p.Brand?.Name ?? "—")</td>
+                                    <td>@(p.Category?.Name ?? "—")</td>
+                                    <td>
+                                        <span class="stock-badge @(p.StockQuantity == 0 ? "stock-out" : "stock-low") num">
+                                            @p.StockQuantity
+                                        </span>
+                                    </td>
+                                    <td class="num text-muted">@p.LowStockThreshold</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

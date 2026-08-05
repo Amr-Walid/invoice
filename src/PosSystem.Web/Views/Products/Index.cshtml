@@ -1,0 +1,132 @@
+@model List<PosSystem.Web.Models.Entities.Product>
+@{
+    ViewData["Title"] = "المنتجات";
+    var lowStock = (bool)(ViewBag.LowStock ?? false);
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0"><i class="bi bi-box"></i> المنتجات</h1>
+    <a class="btn btn-brand touch-btn" asp-action="Create">
+        <i class="bi bi-plus-lg"></i> منتج جديد
+    </a>
+</div>
+
+<form class="filter-bar" method="get" asp-action="Index">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label">بحث بالاسم أو الباركود</label>
+            <input type="text" name="search" class="form-control" value="@ViewBag.Search"
+                   placeholder="اسم المنتج أو الباركود" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">البراند</label>
+            <select name="brandId" class="form-select" asp-items="ViewBag.Brands">
+                <option value="">الكل</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">التصنيف</label>
+            <select name="categoryId" class="form-select" asp-items="ViewBag.Categories">
+                <option value="">الكل</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <div class="form-check mt-4">
+                <input type="checkbox" name="lowStock" value="true" class="form-check-input"
+                       id="lowStockChk" @(lowStock ? "checked" : "") />
+                <label class="form-check-label" for="lowStockChk">مخزون منخفض فقط</label>
+            </div>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+            <button type="submit" class="btn btn-brand flex-grow-1">
+                <i class="bi bi-search"></i> بحث
+            </button>
+            <a asp-action="Index" class="btn btn-outline-secondary">
+                <i class="bi bi-x-lg"></i>
+            </a>
+        </div>
+    </div>
+</form>
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width:50px">#</th>
+                    <th>اسم المنتج</th>
+                    <th>الباركود</th>
+                    <th>البراند</th>
+                    <th>التصنيف</th>
+                    <th style="width:100px">سعر المنتج</th>
+                    <th style="width:90px">المخزون</th>
+                    <th style="width:80px">الحالة</th>
+                    <th style="width:250px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="9" class="empty-state">
+                            <i class="bi bi-box"></i> لا توجد منتجات مطابقة
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    var i = 1;
+                    foreach (var p in Model)
+                    {
+                        <tr>
+                            <td class="text-muted num">@(i++)</td>
+                            <td class="fw-semibold">@p.Name</td>
+                            <td class="num barcode-text">@p.Barcode</td>
+                            <td><span class="badge badge-soft-blue">@(p.Brand?.Name ?? "—")</span></td>
+                            <td><span class="badge badge-soft-gray">@(p.Category?.Name ?? "—")</span></td>
+                            <td class="num fw-bold">@p.Price.ToString("N2")</td>
+                            <td>
+                                <span class="stock-badge num @(p.StockQuantity == 0 ? "stock-out" : p.IsLowStock ? "stock-low" : "stock-ok")">
+                                    @p.StockQuantity
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge @(p.IsActive ? "badge-soft-green" : "badge-soft-red")">
+                                    @(p.IsActive ? "مفعل" : "معطل")
+                                </span>
+                            </td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-dark js-print-barcode"
+                                   asp-action="Barcode" asp-route-id="@p.Id" target="_blank"
+                                   data-barcode="@p.Barcode"
+                                   title="طباعة ملصق الباركود الخاص بهذا المنتج">
+                                    <i class="bi bi-upc-scan"></i> طباعة الباركود
+                                </a>
+                                <a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@p.Id">
+                                    <i class="bi bi-pencil"></i> تعديل
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@p.Id" method="post" class="d-inline"
+                                      onsubmit="return confirm('هل تريد بالتأكيد حذف المنتج «@p.Name»؟');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash3"></i> حذف
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<p class="text-muted mt-2" style="font-size:.84rem">
+    <i class="bi bi-info-circle"></i>
+    المنتج الذي له مبيعات مسجلة يتم <strong>تعطيله</strong> بدلًا من حذفه، للحفاظ على دقة التقارير التاريخية.
+</p>
+<p class="text-muted" style="font-size:.84rem">
+    <i class="bi bi-upc-scan"></i>
+    زر <strong>طباعة الباركود</strong> يفتح صفحة ملصقات جاهزة للطباعة (CODE‑128) يمكن لصقها على المنتج
+    ثم قراءتها بالماسح أو بكاميرا الجهاز في شاشة الفاتورة.
+</p>

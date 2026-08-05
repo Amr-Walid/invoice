@@ -1,0 +1,114 @@
+@model List<PosSystem.Web.Models.Entities.StockTransfer>
+@using PosSystem.Web.Models.Entities
+@{
+    ViewData["Title"] = "قطع في الطريق";
+    var totalPieces = Model.Sum(t => t.TotalInTransit);
+    var now = DateTime.Now;
+
+    // «قديم» = خرج منذ أكثر من ٣ أيام ولم يُستلم. هذا ما يستحق التدخل:
+    // القطعة ليست في أي مخزن، وطول المدة إما إهمال استلام أو فقد فعلي.
+    var stale = Model.Count(t => t.ShippedAt is not null && (now - t.ShippedAt.Value).TotalDays > 3);
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0"><i class="bi bi-truck"></i> قطع في الطريق</h1>
+    <a class="btn btn-outline-secondary touch-btn" asp-action="Index">
+        <i class="bi bi-arrow-right"></i> طلباتي
+    </a>
+</div>
+
+<p class="text-muted">
+    قطع خرجت من مخزن ولم تُسجَّل في المخزن الهدف — لا تظهر في رصيد أي مخزن.
+    كل صف هنا يحتاج «تسجيل استلام» من المخزن الطالب.
+</p>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-4">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">شحنات معلّقة</div>
+            <div class="fs-4 fw-bold num">@Model.Count</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-4">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">إجمالي القطع في الطريق</div>
+            <div class="fs-4 fw-bold num @(totalPieces > 0 ? "text-primary" : "")">@totalPieces</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-4">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">متأخر أكثر من ٣ أيام</div>
+            <div class="fs-4 fw-bold num @(stale > 0 ? "text-danger" : "")">@stale</div>
+        </div></div>
+    </div>
+</div>
+
+@if (stale > 0)
+{
+    <div class="alert alert-danger d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-octagon fs-4"></i>
+        <div>
+            <b class="num">@stale</b> شحنة خرجت منذ أكثر من ٣ أيام ولم تُستلم —
+            راجع المخزن الطالب قبل أن يتحول التأخير إلى فقد غير مُفسَّر.
+        </div>
+    </div>
+}
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th style="width:150px">رقم التحويل</th>
+                    <th>من مخزن</th>
+                    <th>إلى مخزن</th>
+                    <th style="width:110px">في الطريق</th>
+                    <th style="width:140px">تاريخ الشحن</th>
+                    <th style="width:110px">مضى عليها</th>
+                    <th style="width:90px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <i class="bi bi-check2-circle"></i>
+                            لا توجد قطع في الطريق — كل ما شُحن وصل واستُلم
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var t in Model)
+                    {
+                        var days = t.ShippedAt is null ? 0 : (int)(now - t.ShippedAt.Value).TotalDays;
+                        <tr class="@(days > 3 ? "table-danger" : "")">
+                            <td>
+                                <a asp-action="Details" asp-route-id="@t.Id"
+                                   class="fw-bold num text-decoration-none">@t.TransferNumber</a>
+                            </td>
+                            <td>@(t.FromWarehouse?.Name ?? "—")</td>
+                            <td>@(t.ToWarehouse?.Name ?? "—")</td>
+                            <td>
+                                <span class="badge badge-soft-purple num">@t.TotalInTransit</span>
+                            </td>
+                            <td class="num small text-muted">
+                                @(t.ShippedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+                            </td>
+                            <td class="num @(days > 3 ? "text-danger fw-bold" : "text-muted")">
+                                @days يوم
+                            </td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-secondary"
+                                   asp-action="Details" asp-route-id="@t.Id">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

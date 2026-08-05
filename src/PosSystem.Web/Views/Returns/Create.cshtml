@@ -1,0 +1,355 @@
+@model PosSystem.Web.Models.ViewModels.ReturnFormVm
+@using PosSystem.Web.Models.Entities
+@{
+    ViewData["Title"] = "مرتجع الفاتورة " + Model.InvoiceNumber;
+    var reasons = ViewBag.Reasons as ReturnReason[] ?? ReturnReasons.All;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-arrow-counterclockwise"></i> مرتجع الفاتورة
+        <span class="num">@Model.InvoiceNumber</span>
+    </h1>
+    <a class="btn btn-outline-secondary" asp-action="Index">
+        <i class="bi bi-arrow-right"></i> بحث عن فاتورة أخرى
+    </a>
+</div>
+
+<div class="steps mb-3">
+    <span class="step done"><span class="step-num"><i class="bi bi-check"></i></span> ابحث عن الفاتورة</span>
+    <span class="step active"><span class="step-num">2</span> حدّد الأصناف المُرجَعة</span>
+    <span class="step"><span class="step-num">3</span> اضغط «تم»</span>
+</div>
+
+<!-- ============ بيانات الفاتورة الأصلية ============ -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-receipt"></i> الفاتورة الأصلية</span>
+        <span class="badge @(Model.Status == InvoiceStatus.PartiallyReturned ? "badge-soft-orange" : "badge-soft-green")">
+            @(Model.Status == InvoiceStatus.PartiallyReturned ? "مرتجع جزئي سابق" : "مكتملة")
+        </span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="text-muted" style="font-size:.82rem">التاريخ والوقت</div>
+                <div class="fw-semibold num">@Model.InvoiceDate.ToString("yyyy-MM-dd HH:mm")</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted" style="font-size:.82rem">المندوب البائع</div>
+                <div class="fw-semibold">@Model.AgentName</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted" style="font-size:.82rem">العميل</div>
+                <div class="fw-semibold">
+                    @(string.IsNullOrWhiteSpace(Model.CustomerName) ? "غير محدد" : Model.CustomerName)
+                    @if (!string.IsNullOrWhiteSpace(Model.CustomerPhone))
+                    {
+                        <div class="text-muted num" style="font-size:.8rem">@Model.CustomerPhone</div>
+                    }
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted" style="font-size:.82rem">إجمالي الفاتورة</div>
+                <div class="fw-bold num" style="font-size:1.05rem">@Model.InvoiceTotal.ToString("N2")</div>
+                @if (Model.AlreadyRefunded > 0)
+                {
+                    <div class="text-danger num" style="font-size:.8rem">
+                        رُدّ سابقًا @Model.AlreadyRefunded.ToString("N2")
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (Model.DiscountPercentage > 0)
+        {
+            @* شرح ضروري: العميل يستلم قيمة الصنف بعد الخصم لا سعره الكامل *@
+            <div class="alert alert-warning mt-3 mb-0 d-flex align-items-center gap-2"
+                 style="font-size:.86rem">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>
+                    هذه الفاتورة عليها خصم
+                    <strong class="num">@Model.DiscountPercentage.ToString("0.##")%</strong>،
+                    لذلك يُحسب المبلغ المُرَد بنفس نسبة الخصم — العميل يستلم ما دفعه فعلًا.
+                </span>
+            </div>
+        }
+    </div>
+</div>
+
+@if (!Model.HasReturnableItems)
+{
+    <div class="alert alert-secondary d-flex align-items-center gap-2">
+        <i class="bi bi-slash-circle"></i>
+        <span>كل أصناف هذه الفاتورة أُرجعت بالكامل — لا يوجد ما يمكن إرجاعه.</span>
+    </div>
+    <a class="btn btn-brand" asp-action="Index">
+        <i class="bi bi-search"></i> بحث عن فاتورة أخرى
+    </a>
+}
+else
+{
+    <form method="post" asp-action="Confirm" id="returnForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="InvoiceId" value="@Model.InvoiceId" />
+
+        <!-- ============ اختيار الأصناف ============ -->
+        <div class="table-wrap mb-3">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th style="width:32px">#</th>
+                            <th>المنتج</th>
+                            <th>الباركود</th>
+                            <th>سعر الوحدة</th>
+                            <th class="text-center">المُباع</th>
+                            <th class="text-center">مُرجَع سابقًا</th>
+                            <th class="text-center">المتبقي</th>
+                            <th class="text-center" style="width:180px">الكمية المُرجَعة الآن</th>
+                            <th>قيمة المرتجع</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ var idx = 0; }
+                        @foreach (var item in Model.Items)
+                        {
+                            var i = idx++;
+                            var disabled = item.Remaining <= 0;
+                            <tr class="@(disabled ? "table-secondary opacity-50" : "")">
+                                <td class="text-muted num">@(i + 1)</td>
+                                <td class="fw-semibold">@item.ProductName</td>
+                                <td class="num barcode-text text-muted">@item.Barcode</td>
+                                <td class="num" data-price="@item.UnitPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                                    @item.UnitPrice.ToString("N2")
+                                </td>
+                                <td class="text-center num">@item.SoldQuantity</td>
+                                <td class="text-center">
+                                    @if (item.AlreadyReturned > 0)
+                                    {
+                                        <span class="badge badge-soft-orange num">@item.AlreadyReturned</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <strong class="num @(disabled ? "text-muted" : "text-success")">@item.Remaining</strong>
+                                </td>
+                                <td>
+                                    @* معرّف سطر الفاتورة يُرسل دائمًا حتى يتوافق الفهرس مع الكمية *@
+                                    <input type="hidden" name="Items[@i].InvoiceItemId" value="@item.InvoiceItemId" />
+                                    @if (disabled)
+                                    {
+                                        <input type="hidden" name="Items[@i].Quantity" value="0" />
+                                        <span class="text-muted" style="font-size:.82rem">أُرجع بالكامل</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="qty-group justify-content-center">
+                                            <button type="button" class="btn btn-outline-secondary btn-qty"
+                                                    data-step="-1" aria-label="إنقاص">
+                                                <i class="bi bi-dash-lg"></i>
+                                            </button>
+                                            <input type="number" class="form-control text-center num qty-input"
+                                                   name="Items[@i].Quantity" value="0"
+                                                   min="0" max="@item.Remaining"
+                                                   data-max="@item.Remaining"
+                                                   data-price="@item.UnitPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+                                            <button type="button" class="btn btn-outline-secondary btn-qty"
+                                                    data-step="1" aria-label="زيادة">
+                                                <i class="bi bi-plus-lg"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                </td>
+                                <td><strong class="num line-total">0.00</strong></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <!-- ============ سبب المرتجع ============ -->
+            <div class="col-lg-7">
+                <div class="card h-100">
+                    <div class="card-header"><i class="bi bi-chat-left-text"></i> تفاصيل المرتجع</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">سبب الإرجاع</label>
+                            <select name="Reason" class="form-select">
+                                @foreach (var r in reasons)
+                                {
+                                    <option value="@((int)r)">@ReturnReasons.Label(r)</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">ملاحظات (اختياري)</label>
+                            <textarea name="Notes" class="form-control" rows="2"
+                                      maxlength="500" placeholder="أي تفاصيل تساعد في المراجعة لاحقًا"></textarea>
+                        </div>
+
+                        @*
+                            هذا الخيار هو جوهر المطلب: الأصناف المُرجَعة تُحسب تاني في
+                            المخزون. يبقى مفعّلًا افتراضيًا، ويُلغى فقط للتالف الذي
+                            لا يصلح للبيع مرة أخرى.
+                        *@
+                        <div class="form-check form-switch restock-switch p-3 rounded border">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                   id="RestockToInventory" name="RestockToInventory" value="true" checked />
+                            <label class="form-check-label fw-bold" for="RestockToInventory">
+                                <i class="bi bi-box-arrow-in-down"></i>
+                                إعادة الأصناف إلى المخزون
+                            </label>
+                            <div class="text-muted mt-1" style="font-size:.82rem">
+                                عند التفعيل تُضاف الكميات المُرجَعة إلى رصيد المخزون فورًا
+                                وتُسجَّل حركة مخزون لكل صنف. أوقفه لو كان المنتج تالفًا
+                                ولا يصلح للبيع.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ ملخّص المُرَد + زر تم ============ -->
+            <div class="col-lg-5">
+                <div class="card h-100">
+                    <div class="card-header"><i class="bi bi-calculator"></i> ملخّص المرتجع</div>
+                    <div class="card-body">
+                        <div class="totals-row">
+                            <span>عدد الأصناف المُرجَعة</span>
+                            <strong class="num" id="sumItems">0</strong>
+                        </div>
+                        <div class="totals-row">
+                            <span>عدد القطع</span>
+                            <strong class="num" id="sumQty">0</strong>
+                        </div>
+                        <hr class="my-2">
+                        <div class="totals-row">
+                            <span>الإجمالي قبل الخصم</span>
+                            <strong class="num" id="sumSubTotal">0.00</strong>
+                        </div>
+                        <div class="totals-row discount">
+                            <span>
+                                الخصم
+                                <span class="badge badge-soft-red num">@Model.DiscountPercentage.ToString("0.##")%</span>
+                            </span>
+                            <strong class="num" id="sumDiscount">0.00</strong>
+                        </div>
+                        <div class="totals-row grand">
+                            <span>المبلغ المُرَد للعميل</span>
+                            <strong class="num text-danger" id="sumRefund">0.00</strong>
+                        </div>
+
+                        <button type="submit" class="btn btn-success btn-lg w-100 mt-3 touch-btn"
+                                id="btnConfirm" disabled>
+                            <i class="bi bi-check2-circle"></i> تم — تنفيذ المرتجع
+                        </button>
+                        <div class="text-muted text-center mt-2" style="font-size:.8rem">
+                            سيُسجَّل المرتجع باسمك ويُعاد المخزون في نفس اللحظة
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+}
+
+@section Scripts {
+    <script>
+        // ملخّص المرتجع يُحسب في المتصفح للعرض الفوري فقط.
+        // القيمة المُعتمدة تُحسب على السيرفر من الفاتورة الأصلية — لا يُثق
+        // بأي رقم قادم من هذه الصفحة.
+        (function () {
+            var form = document.getElementById('returnForm');
+            if (!form) return;
+
+            var discountPct = @Model.DiscountPercentage.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+            var inputs = Array.prototype.slice.call(form.querySelectorAll('.qty-input'));
+            var btnConfirm = document.getElementById('btnConfirm');
+
+            function money(v) {
+                return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+
+            function clamp(input) {
+                var max = parseInt(input.dataset.max || '0', 10);
+                var v = parseInt(input.value, 10);
+                if (isNaN(v) || v < 0) v = 0;
+                if (v > max) v = max;
+                input.value = v;
+                return v;
+            }
+
+            function recalc() {
+                var items = 0, qty = 0, subTotal = 0;
+
+                inputs.forEach(function (input) {
+                    var v = clamp(input);
+                    var price = parseFloat(input.dataset.price || '0');
+                    var lineTotal = v * price;
+
+                    var row = input.closest('tr');
+                    var cell = row ? row.querySelector('.line-total') : null;
+                    if (cell) cell.textContent = money(lineTotal);
+                    if (row) row.classList.toggle('row-selected', v > 0);
+
+                    if (v > 0) { items++; qty += v; subTotal += lineTotal; }
+                });
+
+                var discount = discountPct > 0 ? (subTotal * discountPct / 100) : 0;
+                var refund = subTotal - discount;
+
+                document.getElementById('sumItems').textContent = items;
+                document.getElementById('sumQty').textContent = qty;
+                document.getElementById('sumSubTotal').textContent = money(subTotal);
+                document.getElementById('sumDiscount').textContent = '- ' + money(discount);
+                document.getElementById('sumRefund').textContent = money(refund);
+
+                // لا يُفعَّل زر «تم» إلا باختيار صنف فعلي — يمنع مرتجعًا فارغًا
+                btnConfirm.disabled = qty === 0;
+            }
+
+            inputs.forEach(function (input) {
+                input.addEventListener('input', recalc);
+                input.addEventListener('change', recalc);
+            });
+
+            form.querySelectorAll('.btn-qty').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var group = btn.closest('.qty-group');
+                    var input = group ? group.querySelector('.qty-input') : null;
+                    if (!input) return;
+                    var step = parseInt(btn.dataset.step, 10);
+                    input.value = (parseInt(input.value, 10) || 0) + step;
+                    recalc();
+                });
+            });
+
+            // تأكيد أخير: العملية مالية عكسية وتُعدّل المخزون، فلا تُنفَّذ بضغطة عابرة.
+            // ونُعطّل الزر بعد الإرسال لمنع الإرجاع المزدوج من ضغطتين سريعتين.
+            var submitting = false;
+            form.addEventListener('submit', function (e) {
+                if (submitting) { e.preventDefault(); return; }
+
+                var refund = document.getElementById('sumRefund').textContent;
+                var restock = document.getElementById('RestockToInventory').checked;
+                var msg = 'تأكيد تنفيذ المرتجع؟\n\nالمبلغ المُرَد: ' + refund +
+                          '\n' + (restock ? 'ستُعاد الأصناف إلى المخزون' : 'لن تُعاد الأصناف إلى المخزون');
+
+                if (!confirm(msg)) { e.preventDefault(); return; }
+
+                submitting = true;
+                btnConfirm.disabled = true;
+                btnConfirm.innerHTML = '<i class="bi bi-hourglass-split"></i> جارٍ التنفيذ...';
+            });
+
+            recalc();
+        })();
+    </script>
+}

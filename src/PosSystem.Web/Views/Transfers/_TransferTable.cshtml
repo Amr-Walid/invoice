@@ -1,0 +1,126 @@
+@model List<PosSystem.Web.Models.Entities.StockTransfer>
+@using PosSystem.Web.Models.Entities
+@{
+    // الوضع يحدد أي عمود يفيد: في «طلباتي» المهم من أطلب منه، وفي
+    // «الواردة» المهم من طَلَب. عرض العمودين دائمًا يضيّق الجدول بلا فائدة.
+    var mode = (string)(ViewData["Mode"] ?? "outgoing");   // outgoing | incoming | all
+    var emptyText = (string)(ViewData["EmptyText"] ?? "لا توجد تحويلات");
+}
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th style="width:150px">رقم التحويل</th>
+                    @if (mode == "all")
+                    {
+                        <th>من مخزن</th>
+                        <th>إلى مخزن</th>
+                    }
+                    else if (mode == "incoming")
+                    {
+                        <th>المخزن الطالب</th>
+                    }
+                    else
+                    {
+                        <th>المطلوب من</th>
+                    }
+                    <th style="width:80px">أصناف</th>
+                    <th style="width:90px">مطلوب</th>
+                    <th style="width:90px">مشحون</th>
+                    <th style="width:90px">مستلم</th>
+                    <th style="width:140px">الحالة</th>
+                    <th style="width:130px">التاريخ</th>
+                    <th style="width:90px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="@(mode == "all" ? 10 : 9)" class="empty-state">
+                            <i class="bi bi-arrow-left-right"></i> @emptyText
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var t in Model)
+                    {
+                        <tr>
+                            <td>
+                                <a asp-action="Details" asp-route-id="@t.Id" class="fw-bold num text-decoration-none">
+                                    @t.TransferNumber
+                                </a>
+                                @if (t.TotalInTransit > 0)
+                                {
+                                    <div>
+                                        <span class="badge badge-soft-purple num" title="قطع خرجت ولم تُستلم">
+                                            <i class="bi bi-truck"></i> @t.TotalInTransit في الطريق
+                                        </span>
+                                    </div>
+                                }
+                            </td>
+
+                            @if (mode == "all")
+                            {
+                                <td>@(t.FromWarehouse?.Name ?? "—")</td>
+                                <td>@(t.ToWarehouse?.Name ?? "—")</td>
+                            }
+                            else if (mode == "incoming")
+                            {
+                                <td>
+                                    @(t.ToWarehouse?.Name ?? "—")
+                                    <div class="small text-muted">طلبه: @t.RequestedByName</div>
+                                </td>
+                            }
+                            else
+                            {
+                                <td>@(t.FromWarehouse?.Name ?? "—")</td>
+                            }
+
+                            <td class="num">@t.Items.Count</td>
+                            <td class="num">@t.TotalRequested</td>
+                            <td class="num">
+                                @if (t.TotalShipped > 0)
+                                {
+                                    <span class="@(t.TotalShipped < t.TotalRequested ? "text-warning fw-bold" : "")">
+                                        @t.TotalShipped
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td class="num">
+                                @if (t.TotalReceived > 0)
+                                {
+                                    <span class="@(t.TotalReceived < t.TotalShipped ? "text-danger fw-bold" : "")">
+                                        @t.TotalReceived
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge @TransferStatusLabel.Badge(t.Status)">
+                                    @TransferStatusLabel.Of(t.Status)
+                                </span>
+                            </td>
+                            <td class="num small text-muted">@t.RequestedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-secondary" asp-action="Details" asp-route-id="@t.Id">
+                                    <i class="bi bi-eye"></i> تفاصيل
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

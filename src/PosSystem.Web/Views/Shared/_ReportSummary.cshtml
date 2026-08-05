@@ -1,0 +1,53 @@
+@model PosSystem.Web.Models.ViewModels.ReportSummaryVm
+@*
+    ملخّص التقارير: مبيعات وخصومات فقط.
+    لا تكلفة ولا أرباح — النظام لا يركّز على المعاملات المالية للتكلفة.
+*@
+
+<div class="stat-grid mb-4">
+    <div class="stat">
+        <div class="stat-label"><i class="bi bi-receipt"></i> عدد الفواتير</div>
+        <div class="stat-value num">@Model.InvoiceCount</div>
+        <div class="stat-extra">متوسط الفاتورة <span class="num">@Model.AverageInvoice.ToString("N2")</span></div>
+    </div>
+
+    <div class="stat purple">
+        <div class="stat-label"><i class="bi bi-box-seam"></i> القطع المباعة</div>
+        <div class="stat-value num">@Model.ItemsSold</div>
+        @if (Model.ItemsReturned > 0)
+        {
+            <div class="stat-extra">
+                صافي بعد المرتجعات <span class="num">@Model.NetItemsSold</span>
+            </div>
+        }
+    </div>
+
+    <div class="stat green">
+        <div class="stat-label"><i class="bi bi-cash-stack"></i> صافي المبيعات</div>
+        <div class="stat-value num">@Model.NetSales.ToString("N2")</div>
+        <div class="stat-extra">قبل الخصم <span class="num">@Model.GrossSales.ToString("N2")</span></div>
+    </div>
+
+    <div class="stat red">
+        <div class="stat-label"><i class="bi bi-tag"></i> إجمالي الخصومات</div>
+        <div class="stat-value num">@Model.TotalDiscount.ToString("N2")</div>
+    </div>
+
+    @*
+        المرتجعات تظهر فقط لو وُجدت فعلًا — لا نُشوّش الشاشة بصفرين في المتجر
+        الذي لا يستقبل مرتجعات. «الصافي بعد المرتجعات» هو ما دخل الخزنة حقًا.
+    *@
+    @if (Model.TotalRefunded > 0 || Model.ItemsReturned > 0)
+    {
+        <div class="stat orange">
+            <div class="stat-label"><i class="bi bi-arrow-counterclockwise"></i> المرتجعات</div>
+            <div class="stat-value num">@Model.TotalRefunded.ToString("N2")</div>
+            <div class="stat-extra">قطع مُرجَعة <span class="num">@Model.ItemsReturned</span></div>
+        </div>
+
+        <div class="stat green">
+            <div class="stat-label"><i class="bi bi-safe"></i> الصافي بعد المرتجعات</div>
+            <div class="stat-value num">@Model.NetAfterReturns.ToString("N2")</div>
+        </div>
+    }
+</div>

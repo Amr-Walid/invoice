@@ -1,0 +1,187 @@
+@using PosSystem.Web.Models.Entities
+@model List<PurchaseReceipt>
+@{
+    ViewData["Title"] = "أذون الاستلام";
+
+    var warehouses = ViewBag.Warehouses as List<Warehouse> ?? new List<Warehouse>();
+    var selectedWarehouseId = ViewBag.SelectedWarehouseId as int?;
+    var locked = (bool)(ViewBag.LockedWarehouse ?? false);
+    var from = ViewBag.From as DateTime?;
+    var to = ViewBag.To as DateTime?;
+
+    var totalPieces = Model.Sum(r => r.TotalQuantity);
+    var suppliersCount = Model
+        .Select(r => r.PurchaseOrder?.SupplierName)
+        .Where(n => !string.IsNullOrWhiteSpace(n))
+        .Distinct()
+        .Count();
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-box-arrow-in-down"></i> أذون الاستلام
+    </h1>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary touch-btn" asp-action="Open">
+            <i class="bi bi-hourglass-split"></i> بانتظار التوريد
+        </a>
+        <a class="btn btn-outline-secondary touch-btn" asp-action="Index">
+            <i class="bi bi-list-ul"></i> كل الأوامر
+        </a>
+    </div>
+</div>
+
+<div class="alert alert-info py-2">
+    <i class="bi bi-info-circle"></i>
+    كل إذن هنا يعني قطعًا <strong>دخلت المخزن فعلًا</strong> وزادت الرصيد.
+    الإذن هو المرجع عند أي خلاف مع مورد: يُثبت ما وصل ومتى ومن استلمه.
+</div>
+
+@if (locked)
+{
+    <div class="alert alert-secondary py-2">
+        <i class="bi bi-lock"></i> تعرض هذه الشاشة أذون مخزنك فقط.
+    </div>
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-4">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="text-muted small">عدد الأذون</div>
+                <div class="fs-4 fw-bold num">@Model.Count</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="text-muted small">إجمالي القطع المستلمة</div>
+                <div class="fs-4 fw-bold num text-success">@totalPieces</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="text-muted small">عدد الموردين</div>
+                <div class="fs-4 fw-bold num">@suppliersCount</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small">من تاريخ</label>
+                <input type="date" name="from" class="form-control"
+                       value="@(from?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">إلى تاريخ</label>
+                <input type="date" name="to" class="form-control"
+                       value="@(to?.ToString("yyyy-MM-dd"))" />
+            </div>
+            @if (!locked && warehouses.Count > 1)
+            {
+                <div class="col-md-3">
+                    <label class="form-label small">المخزن</label>
+                    <select name="warehouseId" class="form-select">
+                        <option value="">كل المخازن</option>
+                        @foreach (var w in warehouses)
+                        {
+                            <option value="@w.Id" selected="@(selectedWarehouseId == w.Id)">@w.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-brand flex-grow-1">
+                    <i class="bi bi-funnel"></i> تصفية
+                </button>
+                <a class="btn btn-outline-secondary" asp-action="Receipts">إلغاء</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        @if (!Model.Any())
+        {
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <p>لا أذون استلام في هذه الفترة</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>رقم الإذن</th>
+                            <th>أمر الشراء</th>
+                            <th>المورد</th>
+                            <th>المخزن</th>
+                            <th class="text-center">الأصناف</th>
+                            <th class="text-center">القطع</th>
+                            <th>المستلِم</th>
+                            <th>التاريخ</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Model)
+                        {
+                            <tr>
+                                <td><span class="num fw-semibold">@r.ReceiptNumber</span></td>
+                                <td>
+                                    @if (r.PurchaseOrder is not null)
+                                    {
+                                        <a asp-action="Details" asp-route-id="@r.PurchaseOrderId"
+                                           class="num">@r.PurchaseOrder.PurchaseNumber</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>@(r.PurchaseOrder?.SupplierName ?? "-")</td>
+                                <td>
+                                    <span class="badge-soft-blue">@(r.Warehouse?.Name ?? "-")</span>
+                                </td>
+                                <td class="text-center num">@r.Items.Count</td>
+                                <td class="text-center">
+                                    <span class="badge-soft-green num">@r.TotalQuantity</span>
+                                </td>
+                                <td>@r.ReceivedByName</td>
+                                <td>
+                                    <span class="num">@r.CreatedAt.ToString("yyyy-MM-dd")</span>
+                                    <span class="text-muted small num">@r.CreatedAt.ToString("HH:mm")</span>
+                                </td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-secondary"
+                                       asp-action="Receipt" asp-route-id="@r.Id" target="_blank"
+                                       title="طباعة الإذن">
+                                        <i class="bi bi-printer"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (Model.Count >= 200)
+            {
+                <div class="p-3 text-muted small border-top">
+                    <i class="bi bi-info-circle"></i>
+                    تُعرض أحدث 200 إذن — ضيّق الفترة للوصول لأذون أقدم.
+                </div>
+            }
+        }
+    </div>
+</div>

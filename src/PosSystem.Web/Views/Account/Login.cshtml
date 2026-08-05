@@ -1,0 +1,52 @@
+@model PosSystem.Web.Models.ViewModels.LoginVm
+@{
+    ViewData["Title"] = "تسجيل الدخول";
+    Layout = "_Layout";
+}
+
+<div class="login-wrap">
+    <div class="login-card">
+        <div class="login-logo"><i class="bi bi-shop-window"></i></div>
+        <h1 class="h4 text-center fw-bold mb-1">نظام المبيعات والتقارير</h1>
+        <p class="text-center text-muted mb-4" style="font-size:.9rem">من فضلك سجّل الدخول للمتابعة</p>
+
+        <form asp-action="Login" method="post" novalidate>
+            <input type="hidden" asp-for="ReturnUrl" />
+
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 px-3" style="font-size:.88rem"></div>
+
+            <div class="mb-3">
+                <label asp-for="Email" class="form-label">
+                    <i class="bi bi-envelope"></i> البريد الإلكتروني
+                </label>
+                <input asp-for="Email" class="form-control" dir="ltr" autocomplete="username"
+                       placeholder="admin@pos.local" autofocus />
+                <span asp-validation-for="Email" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Password" class="form-label">
+                    <i class="bi bi-lock"></i> كلمة المرور
+                </label>
+                <input asp-for="Password" class="form-control" dir="ltr" autocomplete="current-password"
+                       placeholder="••••••••" />
+                <span asp-validation-for="Password" class="text-danger"></span>
+            </div>
+
+            <div class="form-check mb-4">
+                <input asp-for="RememberMe" class="form-check-input" />
+                <label asp-for="RememberMe" class="form-check-label">تذكرني</label>
+            </div>
+
+            <button type="submit" class="btn btn-brand w-100 touch-btn">
+                <i class="bi bi-box-arrow-in-left"></i> دخول
+            </button>
+        </form>
+
+        <div class="login-hint mt-4">
+            <strong><i class="bi bi-info-circle"></i> بيانات الدخول التجريبية:</strong><br>
+            <span class="num">admin@pos.local</span> / <span class="num">Admin@123</span> — مدير<br>
+            <span class="num">agent@pos.local</span> / <span class="num">Agent@123</span> — مندوب
+        </div>
+    </div>
+</div>

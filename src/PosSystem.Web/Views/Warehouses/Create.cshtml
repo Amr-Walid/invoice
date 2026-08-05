@@ -1,0 +1,27 @@
+@model PosSystem.Web.Models.Entities.Warehouse
+@{
+    ViewData["Title"] = "مخزن جديد";
+}
+
+<h1 class="page-title"><i class="bi bi-plus-circle"></i> إضافة مخزن جديد</h1>
+
+<div class="row">
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-body">
+                <form asp-action="Create" method="post">
+                    @await Html.PartialAsync("_WarehouseForm", Model)
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-brand touch-btn px-4">
+                            <i class="bi bi-check-lg"></i> حفظ
+                        </button>
+                        <a asp-action="Index" class="btn btn-outline-secondary touch-btn px-4">إلغاء</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts { @await Html.PartialAsync("_ValidationScriptsPartial") }

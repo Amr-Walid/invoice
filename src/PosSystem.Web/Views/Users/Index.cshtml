@@ -1,0 +1,182 @@
+@model List<PosSystem.Web.Controllers.UsersController.UserRowVm>
+@{
+    ViewData["Title"] = "المستخدمون";
+    var missing = Model.Count(u => u.IsMissingWarehouse);
+}
+
+@* تحذير مجمّع: حساب بلا مخزن يبدو سليمًا ومفعّلًا لكنه لا يستطيع البيع،
+   والمدير يكتشف ذلك عادةً من شكوى المندوب لا من الشاشة — لذلك نُبرِزه أعلى القائمة *@
+@if (missing > 0)
+{
+    <div class="alert alert-warning d-flex align-items-center gap-2">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span>
+            <strong class="num">@missing</strong>
+            @(missing == 1 ? "مستخدم" : "مستخدمين") بلا مخزن — لن يستطيعوا البيع حتى تربطهم بمخزن
+        </span>
+    </div>
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0"><i class="bi bi-people"></i> المستخدمون</h1>
+    <a class="btn btn-brand touch-btn" asp-action="Create">
+        <i class="bi bi-person-plus"></i> مستخدم جديد
+    </a>
+</div>
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width:50px">#</th>
+                    <th>الاسم الكامل</th>
+                    <th>البريد الإلكتروني</th>
+                    <th style="width:110px">الدور</th>
+                    <th style="width:170px">المخزن</th>
+                    <th style="width:90px">الحالة</th>
+                    <th style="width:130px">تاريخ الإنشاء</th>
+                    <th style="width:360px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ var i = 1; }
+                @foreach (var u in Model)
+                {
+                    <tr>
+                        <td class="text-muted num">@(i++)</td>
+                        <td class="fw-semibold">@u.FullName</td>
+                        <td class="num" dir="ltr" style="text-align:right">@u.Email</td>
+                        <td>
+                            <span class="badge @(u.Role == "Admin" ? "bg-warning text-dark" : u.Role == "WarehouseKeeper" ? "bg-primary" : "bg-info text-dark")">
+                                @u.RoleLabel
+                            </span>
+                        </td>
+                        <td>
+                            @if (u.Role == "Admin" && u.WarehouseId is null)
+                            {
+                                @* عند المدير NULL تعني «كل المخازن» لا «بلا مخزن» *@
+                                <span class="text-muted small"><i class="bi bi-globe"></i> كل المخازن</span>
+                            }
+                            else if (u.WarehouseId is null)
+                            {
+                                <span class="badge badge-soft-red">
+                                    <i class="bi bi-exclamation-triangle"></i> بلا مخزن
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-soft-green">
+                                    <i class="bi bi-building"></i> @u.WarehouseName
+                                </span>
+                            }
+                        </td>
+                        <td>
+                            <span class="badge @(u.IsActive ? "badge-soft-green" : "badge-soft-red")">
+                                @(u.IsActive ? "مفعل" : "معطل")
+                            </span>
+                        </td>
+                        <td class="num text-muted">@u.CreatedAt.ToString("yyyy-MM-dd")</td>
+                        <td>
+                            <form asp-action="ToggleActive" asp-route-id="@u.Id" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-sm @(u.IsActive ? "btn-outline-warning" : "btn-outline-success")">
+                                    <i class="bi @(u.IsActive ? "bi-pause-circle" : "bi-play-circle")"></i>
+                                    @(u.IsActive ? "تعطيل" : "تفعيل")
+                                </button>
+                            </form>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    data-bs-toggle="modal" data-bs-target="#pwdModal-@u.Id">
+                                <i class="bi bi-key"></i> كلمة المرور
+                            </button>
+                            <button type="button" class="btn btn-sm @(u.IsMissingWarehouse ? "btn-danger" : "btn-outline-primary")"
+                                    data-bs-toggle="modal" data-bs-target="#whModal-@u.Id">
+                                <i class="bi bi-building-gear"></i> المخزن
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@* ============ نوافذ ربط المستخدم بمخزن ============ *@
+@foreach (var u in Model)
+{
+    <div class="modal fade" id="whModal-@u.Id" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius:14px">
+                <form asp-action="ChangeWarehouse" asp-route-id="@u.Id" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-building-gear"></i> مخزن @u.FullName
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label">المخزن المربوط</label>
+                        @* asp-items لا يُعلِّم الخيار الحالي هنا لأن SelectList واحدة مشتركة بين
+                           كل النوافذ؛ لذلك نبني الخيارات يدويًا ونحدد selected لكل مستخدم *@
+                        <select name="warehouseId" class="form-select">
+                            <option value="">@(u.Role == "Admin" ? "— كل المخازن —" : "— اختر المخزن —")</option>
+                            @foreach (var w in (SelectList)ViewBag.Warehouses)
+                            {
+                                <option value="@w.Value" selected="@(u.WarehouseId?.ToString() == w.Value)">
+                                    @w.Text
+                                </option>
+                            }
+                        </select>
+
+                        @* النقل يغير «من أين يبيع» فقط؛ توضيح هذا يمنع توقع نقل المخزون معه *@
+                        <div class="alert alert-info mt-3 mb-0 py-2 px-3 small">
+                            <i class="bi bi-info-circle"></i>
+                            النقل يغيّر المخزن الذي يبيع منه فقط.
+                            فواتيره السابقة تبقى منسوبة لمخزنها الأصلي،
+                            ومرتجعاتها ترجع إليه لا إلى المخزن الجديد. لا يُنقل أي مخزون.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-brand">
+                            <i class="bi bi-check-lg"></i> حفظ
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@* ============ نوافذ إعادة تعيين كلمة المرور ============ *@
+@foreach (var u in Model)
+{
+    <div class="modal fade" id="pwdModal-@u.Id" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius:14px">
+                <form asp-action="ResetPassword" asp-route-id="@u.Id" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-key"></i> إعادة تعيين كلمة مرور @u.FullName
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label">كلمة المرور الجديدة</label>
+                        <input type="text" name="newPassword" class="form-control" dir="ltr"
+                               minlength="6" required placeholder="6 أحرف على الأقل" />
+                        <small class="text-muted">سيتم تغيير كلمة المرور فورًا بعد الحفظ.</small>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-brand">
+                            <i class="bi bi-check-lg"></i> تغيير
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}

@@ -1,0 +1,103 @@
+@model List<PosSystem.Web.Models.ViewModels.TopProductVm>
+@{
+    ViewData["Title"] = "المنتجات الأكثر مبيعًا";
+    var filter = ViewBag.Filter as PosSystem.Web.Models.ViewModels.ReportFilterVm
+        ?? new PosSystem.Web.Models.ViewModels.ReportFilterVm();
+    var maxQty = Model.Any() ? Model.Max(x => x.QuantitySold) : 1;
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-trophy"></i> الأكثر مبيعًا — @filter.PeriodLabel
+    </h1>
+    <a class="btn btn-outline-secondary" asp-action="Index">
+        <i class="bi bi-arrow-right"></i> رجوع لتقرير المبيعات
+    </a>
+</div>
+
+<form class="filter-bar" method="get" asp-action="TopProducts">
+    <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-3">
+            <label class="form-label">الفترة</label>
+            <select name="Period" class="form-select" onchange="this.form.submit()">
+                <option value="1" selected="@(filter.Period == PosSystem.Web.Models.ViewModels.ReportPeriod.Today)">اليوم</option>
+                <option value="2" selected="@(filter.Period == PosSystem.Web.Models.ViewModels.ReportPeriod.Week)">هذا الأسبوع</option>
+                <option value="3" selected="@(filter.Period == PosSystem.Web.Models.ViewModels.ReportPeriod.Month)">هذا الشهر</option>
+                <option value="4" selected="@(filter.Period == PosSystem.Web.Models.ViewModels.ReportPeriod.All)">كل الفترات</option>
+                <option value="5" selected="@(filter.Period == PosSystem.Web.Models.ViewModels.ReportPeriod.Custom)">مخصص</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label">من تاريخ</label>
+            <input type="date" name="From" class="form-control num" value="@(filter.From?.ToString("yyyy-MM-dd"))" />
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label">إلى تاريخ</label>
+            <input type="date" name="To" class="form-control num" value="@(filter.To?.ToString("yyyy-MM-dd"))" />
+        </div>
+        <div class="col-6 col-md-3">
+            <button type="submit" class="btn btn-brand w-100">
+                <i class="bi bi-funnel"></i> تطبيق
+            </button>
+        </div>
+    </div>
+</form>
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width:60px">الترتيب</th>
+                    <th>المنتج</th>
+                    <th>الباركود</th>
+                    <th style="width:110px">الكمية المباعة</th>
+                    <th style="width:220px">النسبة</th>
+                    <th style="width:130px">الإيراد</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="empty-state">
+                            <i class="bi bi-inbox"></i> لا توجد مبيعات في هذه الفترة
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    var rank = 1;
+                    foreach (var p in Model)
+                    {
+                        var pct = maxQty == 0 ? 0 : (int)(p.QuantitySold * 100.0 / maxQty);
+                        <tr>
+                            <td>
+                                @if (rank <= 3)
+                                {
+                                    <span class="badge @(rank == 1 ? "bg-warning text-dark" : rank == 2 ? "bg-secondary" : "bg-danger") num">
+                                        @rank
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted num">@rank</span>
+                                }
+                            </td>
+                            <td class="fw-semibold">@p.ProductName</td>
+                            <td class="num barcode-text text-muted">@p.Barcode</td>
+                            <td><strong class="num">@p.QuantitySold</strong></td>
+                            <td>
+                                <div class="progress" style="height:9px">
+                                    <div class="progress-bar" role="progressbar" style="width:@pct%"></div>
+                                </div>
+                            </td>
+                            <td class="num fw-bold text-success">@p.Revenue.ToString("N2")</td>
+                        </tr>
+                        rank++;
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

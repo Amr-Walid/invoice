@@ -1,0 +1,100 @@
+@model PosSystem.Web.Models.Entities.Invoice
+@{
+    ViewData["Title"] = "فاتورة " + Model.InvoiceNumber;
+}
+
+<div class="text-center no-print mb-3">
+    <button class="btn btn-brand touch-btn px-4" onclick="window.print()">
+        <i class="bi bi-printer"></i> طباعة الفاتورة
+    </button>
+    <a class="btn btn-outline-secondary touch-btn px-4" asp-controller="Pos" asp-action="Index">
+        <i class="bi bi-arrow-right"></i> رجوع
+    </a>
+    <p class="text-muted mt-2" style="font-size:.82rem">
+        للطباعة الحرارية: اختر مقاس الورق 80mm وأزل الهوامش من إعدادات الطباعة
+    </p>
+</div>
+
+<div class="receipt print-area">
+    <h1>نظام المبيعات</h1>
+    <div class="r-sub">فاتورة مبيعات</div>
+
+    <div class="r-sep"></div>
+
+    <div class="r-line"><span>رقم الفاتورة:</span><strong class="num">@Model.InvoiceNumber</strong></div>
+    <div class="r-line"><span>التاريخ:</span><span class="num">@Model.CreatedAt.ToString("yyyy-MM-dd")</span></div>
+    <div class="r-line"><span>الوقت:</span><span class="num">@Model.CreatedAt.ToString("HH:mm:ss")</span></div>
+    <div class="r-line"><span>المندوب:</span><span>@(Model.Agent?.FullName ?? "-")</span></div>
+    @if (!string.IsNullOrWhiteSpace(Model.CustomerName))
+    {
+        <div class="r-line"><span>العميل:</span><span>@Model.CustomerName</span></div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.CustomerPhone))
+    {
+        <div class="r-line"><span>الهاتف:</span><span class="num">@Model.CustomerPhone</span></div>
+    }
+
+    <div class="r-sep"></div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>الصنف</th>
+                <th style="width:30px" class="text-center">كم</th>
+                <th style="width:52px" class="text-end">السعر</th>
+                <th style="width:58px" class="text-end">إجمالي</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td>@item.ProductName</td>
+                    <td class="text-center num">@item.Quantity</td>
+                    <td class="text-end num">@item.UnitPrice.ToString("N2")</td>
+                    <td class="text-end num">@item.LineTotal.ToString("N2")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="r-sep"></div>
+
+    <div class="r-line">
+        <span>عدد القطع:</span><span class="num">@Model.TotalQuantity</span>
+    </div>
+    <div class="r-line">
+        <span>الإجمالي الفرعي:</span><span class="num">@Model.SubTotal.ToString("N2")</span>
+    </div>
+
+    @if (Model.DiscountAmount > 0)
+    {
+        <div class="r-line">
+            <span>الخصم (@Model.DiscountPercentage.ToString("0.##")%):</span>
+            <span class="num">- @Model.DiscountAmount.ToString("N2")</span>
+        </div>
+        <div class="r-line">
+            <span>كود الخصم:</span><span class="num">@Model.CouponCode</span>
+        </div>
+    }
+
+    <div class="r-line r-total">
+        <span>الإجمالي:</span><span class="num">@Model.Total.ToString("N2")</span>
+    </div>
+
+    <div class="r-sep"></div>
+
+    <div class="r-foot">
+        شكرًا لتعاملكم معنا<br>
+        <span class="num">@Model.InvoiceNumber</span>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // طباعة تلقائية عند الفتح من نافذة النجاح
+        if (new URLSearchParams(location.search).get('print') === '1') {
+            window.addEventListener('load', function () { window.print(); });
+        }
+    </script>
+}

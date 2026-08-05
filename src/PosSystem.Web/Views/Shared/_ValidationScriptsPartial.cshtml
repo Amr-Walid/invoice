@@ -1,0 +1,11 @@
+@*
+    التحقّق من صحة النماذج في المتصفح.
+
+    ترتيب التحميل إلزامي: jQuery ثم jquery-validation ثم unobtrusive.
+    كان jQuery نفسه غير مُحمَّل إطلاقًا (لا في التخطيط ولا هنا)، فكان
+    jquery.validate يرفع «jQuery is not defined» ويتوقّف التحقّق الفوري
+    في كل النماذج بصمت — تظهر الأخطاء بعد رحلة كاملة للسيرفر فقط.
+*@
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+<script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>

@@ -1,0 +1,74 @@
+@using PosSystem.Web.Models.ViewModels
+@model List<PurchaseReportRowVm>
+@{
+    var title = ViewData["Title"] as string ?? "";
+    var icon = ViewData["Icon"] as string ?? "bi-table";
+    var firstCol = ViewData["FirstCol"] as string ?? "البند";
+    var hideOrders = (bool)(ViewData["HideOrders"] ?? false);
+    var grandTotal = (decimal)(ViewData["GrandTotal"] ?? 0m);
+}
+
+<div class="card h-100">
+    <div class="card-header">
+        <i class="bi @icon"></i> @title
+    </div>
+    <div class="card-body p-0">
+        @if (!Model.Any())
+        {
+            <div class="empty-state py-4">
+                <i class="bi bi-dash-circle"></i>
+                <p class="mb-0">لا بيانات</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>@firstCol</th>
+                            @if (!hideOrders)
+                            {
+                                <th class="text-center">الأوامر</th>
+                            }
+                            <th class="text-center">القطع</th>
+                            <th class="text-end">الإجمالي</th>
+                            <th class="text-center" style="width:70px">النسبة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model)
+                        {
+                            @* النسبة هي ما يحوّل الأرقام لقرار: مورد بـ 60% من المشتريات خطر تركيز *@
+                            var share = grandTotal > 0 ? (double)(row.Total / grandTotal) * 100 : 0;
+                            <tr>
+                                <td>@row.Label</td>
+                                @if (!hideOrders)
+                                {
+                                    <td class="text-center num">@row.OrderCount</td>
+                                }
+                                <td class="text-center num">@row.Pieces</td>
+                                <td class="text-end num fw-semibold">@row.Total.ToString("N2")</td>
+                                <td class="text-center">
+                                    <span class="badge-soft-gray num">@share.ToString("0.#")%</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th>الإجمالي</th>
+                            @if (!hideOrders)
+                            {
+                                <th class="text-center num">@Model.Sum(r => r.OrderCount)</th>
+                            }
+                            <th class="text-center num">@Model.Sum(r => r.Pieces)</th>
+                            <th class="text-end num">@Model.Sum(r => r.Total).ToString("N2")</th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        }
+    </div>
+</div>

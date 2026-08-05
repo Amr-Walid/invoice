@@ -1,0 +1,63 @@
+@model PosSystem.Web.Models.ViewModels.ReportResultVm
+@{
+    var showAgentFilter = Model.Agents != null && Model.Agents.Any();
+    var action = (string?)ViewData["FilterAction"] ?? "Index";
+    var controller = (string?)ViewData["FilterController"];
+}
+
+<form class="filter-bar" method="get" asp-action="@action" asp-controller="@controller">
+    <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-2">
+            <label class="form-label">الفترة</label>
+            <select name="Period" class="form-select" onchange="this.form.submit()">
+                <option value="1" selected="@(Model.Filter.Period == PosSystem.Web.Models.ViewModels.ReportPeriod.Today)">اليوم</option>
+                <option value="2" selected="@(Model.Filter.Period == PosSystem.Web.Models.ViewModels.ReportPeriod.Week)">هذا الأسبوع</option>
+                <option value="3" selected="@(Model.Filter.Period == PosSystem.Web.Models.ViewModels.ReportPeriod.Month)">هذا الشهر</option>
+                <option value="4" selected="@(Model.Filter.Period == PosSystem.Web.Models.ViewModels.ReportPeriod.All)">كل الفترات</option>
+                <option value="5" selected="@(Model.Filter.Period == PosSystem.Web.Models.ViewModels.ReportPeriod.Custom)">مخصص</option>
+            </select>
+        </div>
+
+        <div class="col-6 col-md-2">
+            <label class="form-label">من تاريخ</label>
+            <input type="date" name="From" class="form-control num"
+                   value="@(Model.Filter.From?.ToString("yyyy-MM-dd"))" />
+        </div>
+
+        <div class="col-6 col-md-2">
+            <label class="form-label">إلى تاريخ</label>
+            <input type="date" name="To" class="form-control num"
+                   value="@(Model.Filter.To?.ToString("yyyy-MM-dd"))" />
+        </div>
+
+        @if (showAgentFilter)
+        {
+            <div class="col-6 col-md-2">
+                <label class="form-label">المندوب</label>
+                <select name="AgentId" class="form-select">
+                    <option value="">كل المناديب</option>
+                    @foreach (var a in Model.Agents ?? new())
+                    {
+                        <option value="@a.Id" selected="@(Model.Filter.AgentId == a.Id)">@a.FullName</option>
+                    }
+                </select>
+            </div>
+        }
+
+        <div class="col-12 col-md-2">
+            <label class="form-label">بحث</label>
+            <input type="text" name="Search" class="form-control"
+                   value="@Model.Filter.Search" placeholder="رقم فاتورة / عميل" />
+        </div>
+
+        <div class="col-12 col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-brand flex-grow-1">
+                <i class="bi bi-funnel"></i> تطبيق
+            </button>
+        </div>
+    </div>
+    <div class="mt-2" style="font-size:.82rem;color:#64748b">
+        <i class="bi bi-info-circle"></i>
+        اختر «مخصص» لتحديد نطاق تاريخي بحرية. الفترة الحالية: <strong>@Model.Filter.PeriodLabel</strong>
+    </div>
+</form>

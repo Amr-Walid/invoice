@@ -1,0 +1,200 @@
+@model PosSystem.Web.Models.ViewModels.CustomerDetailsVm
+@{
+    ViewData["Title"] = "بيانات العميل — " + Model.Customer.Name;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-person-vcard"></i> @Model.Customer.Name
+    </h1>
+    <a class="btn btn-outline-secondary" asp-action="Index">
+        <i class="bi bi-arrow-right"></i> كل العملاء
+    </a>
+</div>
+
+<!-- ============ بطاقة بيانات العميل ============ -->
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-person-lines-fill"></i> بيانات العميل</div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="text-muted" style="font-size:.82rem">اسم العميل</div>
+                <div class="fw-bold" style="font-size:1.05rem">@Model.Customer.Name</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted" style="font-size:.82rem">
+                    <i class="bi bi-telephone"></i> رقم الهاتف
+                </div>
+                <div class="fw-bold num" style="font-size:1.05rem">
+                    <a href="tel:@Model.Customer.Phone" class="text-decoration-none">@Model.Customer.Phone</a>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted" style="font-size:.82rem">تاريخ أول تعامل</div>
+                <div class="fw-semibold num">@Model.Customer.CreatedAt.ToString("yyyy-MM-dd")</div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Model.Customer.Address))
+            {
+                <div class="col-md-6">
+                    <div class="text-muted" style="font-size:.82rem">العنوان</div>
+                    <div class="fw-semibold">@Model.Customer.Address</div>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.Customer.Notes))
+            {
+                <div class="col-md-6">
+                    <div class="text-muted" style="font-size:.82rem">ملاحظات</div>
+                    <div>@Model.Customer.Notes</div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- ============ ملخّص تعامل العميل ============ -->
+<div class="stat-grid mb-4">
+    <div class="stat">
+        <div class="stat-label"><i class="bi bi-receipt"></i> عدد الفواتير</div>
+        <div class="stat-value num">@Model.InvoiceCount</div>
+    </div>
+    <div class="stat purple">
+        <div class="stat-label"><i class="bi bi-box-seam"></i> القطع المشتراة</div>
+        <div class="stat-value num">@Model.ItemsBought</div>
+    </div>
+    <div class="stat green">
+        <div class="stat-label"><i class="bi bi-cash-stack"></i> صافي المشتريات</div>
+        <div class="stat-value num">@Model.TotalSpent.ToString("N2")</div>
+        <div class="stat-extra">قبل المرتجعات <span class="num">@Model.GrossSpent.ToString("N2")</span></div>
+    </div>
+    @if (Model.TotalRefunded > 0 || Model.ReturnCount > 0)
+    {
+        <div class="stat orange">
+            <div class="stat-label"><i class="bi bi-arrow-counterclockwise"></i> المرتجعات</div>
+            <div class="stat-value num">@Model.TotalRefunded.ToString("N2")</div>
+            <div class="stat-extra">عدد المرتجعات <span class="num">@Model.ReturnCount</span></div>
+        </div>
+    }
+</div>
+
+<!-- ============ فواتير العميل ============ -->
+<h2 class="section-title"><i class="bi bi-receipt-cutoff"></i> فواتير العميل</h2>
+<div class="table-wrap mb-4">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>رقم الفاتورة</th>
+                    <th>التاريخ والوقت</th>
+                    <th>المندوب</th>
+                    <th class="text-center">القطع</th>
+                    <th>الإجمالي</th>
+                    <th>الحالة</th>
+                    <th style="width:190px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Invoices.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <i class="bi bi-inbox"></i> لا توجد فواتير لهذا العميل
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var inv in Model.Invoices)
+                    {
+                        <tr>
+                            <td><strong class="num">@inv.InvoiceNumber</strong></td>
+                            <td class="num">@inv.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@(inv.Agent?.FullName ?? "—")</td>
+                            <td class="text-center">
+                                <span class="num">@inv.TotalQuantity</span>
+                                @if (inv.ReturnedQuantity > 0)
+                                {
+                                    <span class="badge badge-soft-orange num"
+                                          title="قطع مُرجَعة">-@inv.ReturnedQuantity</span>
+                                }
+                            </td>
+                            <td>
+                                <strong class="num text-success">@inv.Total.ToString("N2")</strong>
+                                @if (inv.RefundedAmount > 0)
+                                {
+                                    <div class="text-muted num" style="font-size:.8rem">
+                                        صافي @inv.NetAfterReturns.ToString("N2")
+                                    </div>
+                                }
+                            </td>
+                            <td><span class="badge @inv.StatusBadgeClass">@inv.StatusLabel</span></td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-primary"
+                                   asp-controller="@(User.IsInRole(PosSystem.Web.Models.Entities.AppRoles.Admin) ? "Reports" : "AgentReports")"
+                                   asp-action="Details" asp-route-id="@inv.Id">
+                                    <i class="bi bi-eye"></i> تفاصيل
+                                </a>
+                                <a class="btn btn-sm btn-outline-secondary" asp-controller="Pos"
+                                   asp-action="Receipt" asp-route-id="@inv.Id" target="_blank" title="طباعة">
+                                    <i class="bi bi-printer"></i>
+                                </a>
+                                @if (inv.HasReturnableItems)
+                                {
+                                    <a class="btn btn-sm btn-outline-warning" asp-controller="Returns"
+                                       asp-action="Create" asp-route-invoiceId="@inv.Id" title="مرتجع">
+                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                    </a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ============ مرتجعات العميل ============ -->
+@if (Model.Returns.Any())
+{
+    <h2 class="section-title"><i class="bi bi-arrow-counterclockwise"></i> مرتجعات العميل</h2>
+    <div class="table-wrap">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>رقم المرتجع</th>
+                        <th>الفاتورة الأصلية</th>
+                        <th>التاريخ والوقت</th>
+                        <th>السبب</th>
+                        <th class="text-center">القطع</th>
+                        <th>المبلغ المُرَد</th>
+                        <th style="width:110px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var ret in Model.Returns)
+                    {
+                        <tr>
+                            <td><strong class="num">@ret.ReturnNumber</strong></td>
+                            <td class="num">@ret.InvoiceNumber</td>
+                            <td class="num">@ret.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>
+                                <span class="badge badge-soft-gray">
+                                    @PosSystem.Web.Models.Entities.ReturnReasons.Label(ret.Reason)
+                                </span>
+                            </td>
+                            <td class="text-center num">@ret.TotalQuantity</td>
+                            <td><strong class="num text-danger">@ret.RefundAmount.ToString("N2")</strong></td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-primary" asp-controller="Returns"
+                                   asp-action="Details" asp-route-id="@ret.Id">
+                                    <i class="bi bi-eye"></i> تفاصيل
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

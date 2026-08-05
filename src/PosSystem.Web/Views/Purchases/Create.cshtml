@@ -1,0 +1,355 @@
+@using PosSystem.Web.Models.Entities
+@using PosSystem.Web.Models.ViewModels
+@{
+    var editOrder = ViewBag.EditOrder as PurchaseOrder;
+    var isEdit = editOrder is not null;
+    ViewData["Title"] = isEdit ? "تعديل أمر شراء" : "أمر شراء جديد";
+
+    var suppliers = ViewBag.Suppliers as List<Supplier> ?? new List<Supplier>();
+    var warehouses = ViewBag.Warehouses as List<Warehouse> ?? new List<Warehouse>();
+    var products = ViewBag.Products as List<PurchaseProductRowVm> ?? new List<PurchaseProductRowVm>();
+    var warehouse = ViewBag.Warehouse as Warehouse;
+    var warehouseId = (int)(ViewBag.WarehouseId ?? 0);
+    var search = ViewBag.Search as string;
+    var lowStockOnly = (bool)(ViewBag.LowStockOnly ?? false);
+
+    var selectedSupplierId = ViewBag.SelectedSupplierId as int?;
+    var discount = ViewBag.DiscountPercentage as decimal? ?? 0m;
+    var expected = ViewBag.ExpectedDate as DateTime?;
+    var notes = ViewBag.Notes as string;
+
+    // عند التعديل نُعيد كميات وتكاليف السطور المحفوظة إلى الشاشة
+    var existing = editOrder?.Items.ToDictionary(i => i.ProductId, i => i)
+                   ?? new Dictionary<int, PurchaseOrderItem>();
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-cart-plus"></i>
+        @(isEdit ? $"تعديل الأمر {editOrder!.PurchaseNumber}" : "أمر شراء جديد")
+    </h1>
+    <a class="btn btn-outline-secondary touch-btn"
+       asp-action="@(isEdit ? "Details" : "Index")"
+       asp-route-id="@(isEdit ? editOrder!.Id.ToString() : null)">
+        <i class="bi bi-arrow-right"></i> رجوع
+    </a>
+</div>
+
+@if (!suppliers.Any())
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i>
+        لا يوجد مورد نشط — <a asp-controller="Suppliers" asp-action="Create">أضف موردًا</a>
+        قبل تسجيل أمر شراء. الشراء يبدأ باختيار مورد من قائمة موجودة.
+    </div>
+    @* لا نُعرض بقية النموذج بلا مورد: زر «حفظ» سيُرفض دائمًا فعرضه إرباك *@
+}
+else
+{
+
+@* التنبيه الجوهري: الشراء نية، والمخزون لا يتغير إلا بالاستلام. ذكره هنا
+   يمنع سؤال «اشتريت ولم يزد المخزون» *@
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i>
+    حفظ الأمر أو اعتماده <strong>لا يُضيف أي كمية للمخزون</strong> —
+    الكميات تُضاف عند تسجيل الاستلام فقط، فلا تُباع بضاعة لم تصل.
+</div>
+
+<form method="post"
+      asp-action="@(isEdit ? "Edit" : "Create")"
+      asp-route-id="@(isEdit ? editOrder!.Id.ToString() : null)"
+      id="poForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="warehouseId" value="@warehouseId" />
+
+    <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-file-text"></i> بيانات الأمر</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">المورد <span class="text-danger">*</span></label>
+                    <select name="supplierId" class="form-select" required>
+                        <option value="">— اختر المورد —</option>
+                        @foreach (var s in suppliers)
+                        {
+                            <option value="@s.Id" selected="@(selectedSupplierId == s.Id)">
+                                @s.Name — @s.Phone
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">المخزن المستقبِل</label>
+                    @* تغيير المخزن يُعيد تحميل الشاشة: الأرصدة المعروضة وآخر
+                       التكاليف تُقرأ لمخزن محدَّد، فتبقيتها بعد التغيير كذب *@
+                    <select class="form-select" id="warehouseSelect"
+                            onchange="location.href='?warehouseId=' + this.value"
+                            @(isEdit ? "disabled" : "")>
+                        @foreach (var w in warehouses)
+                        {
+                            <option value="@w.Id" selected="@(warehouseId == w.Id)">@w.Name</option>
+                        }
+                    </select>
+                    @if (isEdit)
+                    {
+                        <div class="form-text">مخزن الأمر لا يُغيَّر من هنا</div>
+                    }
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">تاريخ التوريد المتوقع</label>
+                    <input type="date" name="expectedDate" class="form-control num"
+                           value="@expected?.ToString("yyyy-MM-dd")" />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">نسبة خصم %</label>
+                    <input type="number" name="discountPercentage" id="discountInput"
+                           class="form-control num" min="0" max="100" step="0.01"
+                           value="@discount.ToString("0.##")" />
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label">ملاحظات</label>
+                    <input type="text" name="notes" class="form-control" value="@notes"
+                           placeholder="شروط الدفع، رقم فاتورة المورد، ملاحظات التوريد…" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="bi bi-box"></i> الأصناف</span>
+            <span class="small text-muted">
+                الرصيد المعروض لمخزن «@(warehouse?.Name ?? "—")»
+            </span>
+        </div>
+        <div class="card-body">
+            @* البحث والفلتر عبر GET لا JS: القائمة قد تكون كبيرة، وتحميل كل
+               الأصناف للمتصفح لفلترتها محليًا يُثقل الشاشة بلا داع *@
+            <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                    <input type="search" class="form-control" id="searchBox"
+                           value="@search" placeholder="ابحث بالاسم أو الباركود ثم Enter…" />
+                </div>
+                <div class="col-md-3">
+                    <div class="form-check mt-2">
+                        <input type="checkbox" class="form-check-input" id="lowOnly"
+                               @(lowStockOnly ? "checked" : "") />
+                        <label class="form-check-label" for="lowOnly">الناقص فقط</label>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="applyFilter">
+                        <i class="bi bi-funnel"></i> تطبيق
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>الصنف</th>
+                            <th style="width:120px">الباركود</th>
+                            <th style="width:95px">الرصيد هنا</th>
+                            <th style="width:120px">آخر تكلفة</th>
+                            <th style="width:130px">تكلفة الوحدة</th>
+                            <th style="width:120px">الكمية</th>
+                            <th style="width:120px">الإجمالي</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!products.Any())
+                        {
+                            <tr><td colspan="7" class="empty-state">
+                                <i class="bi bi-box"></i> لا أصناف مطابقة
+                            </td></tr>
+                        }
+                        else
+                        {
+                            foreach (var p in products)
+                            {
+                                existing.TryGetValue(p.ProductId, out var line);
+                                var cost = line?.UnitCost ?? p.LastCost ?? 0m;
+                                var qty = line?.Quantity ?? 0;
+                                <tr data-row="1">
+                                    <td>
+                                        <div class="fw-bold">@p.Name</div>
+                                        <div class="small text-muted">@p.BrandName — @p.CategoryName</div>
+                                        <input type="hidden" name="productIds" value="@p.ProductId" />
+                                    </td>
+                                    <td class="num small" dir="ltr">@p.Barcode</td>
+                                    <td class="num">
+                                        <span class="badge @(p.IsLowStock ? "badge-soft-red" : "badge-soft-gray")">
+                                            @p.QuantityHere
+                                        </span>
+                                        @if (p.IsLowStock)
+                                        {
+                                            @* الناقص يُبرز: هو أول ما يُشترى *@
+                                            <div class="small text-danger">ناقص</div>
+                                        }
+                                    </td>
+                                    <td class="num small text-muted">
+                                        @(p.LastCost.HasValue ? p.LastCost.Value.ToString("N2") : "—")
+                                    </td>
+                                    <td>
+                                        @* التكلفة تُقترح من آخر شراء فلا تُبحث يدويًا،
+                                           وتبقى قابلة للتعديل لأن الأسعار تتغير *@
+                                        <input type="number" name="unitCosts" class="form-control form-control-sm num cost-in"
+                                               min="0" step="0.01" value="@cost.ToString("0.##")" />
+                                    </td>
+                                    <td>
+                                        <input type="number" name="quantities" class="form-control form-control-sm num qty-in"
+                                               min="0" max="100000" step="1" value="@qty" />
+                                    </td>
+                                    <td class="num fw-bold line-total">0.00</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3 align-items-center">
+                <div class="col-md-3">
+                    <div class="text-muted small">عدد الأصناف</div>
+                    <div class="fs-5 fw-bold num" id="sumItems">0</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small">عدد القطع</div>
+                    <div class="fs-5 fw-bold num" id="sumQty">0</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small">قبل الخصم</div>
+                    <div class="fs-5 fw-bold num" id="sumSub">0.00</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small">الإجمالي بعد الخصم</div>
+                    <div class="fs-4 fw-bold num text-primary" id="sumTotal">0.00</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap mb-4">
+        <button type="submit" name="confirmImmediately" value="false"
+                class="btn btn-outline-primary touch-btn px-4">
+            <i class="bi bi-save"></i> حفظ كمسودة
+        </button>
+        @* المسودة قابلة للتعديل، والمعتمد لا. نفصل الزرّين ونُنبّه في الثاني *@
+        <button type="submit" name="confirmImmediately" value="true"
+                class="btn btn-brand touch-btn px-4"
+                onclick="return confirm('اعتماد الأمر يعني إرساله للمورد، ولن يكون قابلًا للتعديل بعدها. متابعة؟');">
+            <i class="bi bi-check2-circle"></i> حفظ واعتماد
+        </button>
+        <a asp-action="@(isEdit ? "Details" : "Index")"
+           asp-route-id="@(isEdit ? editOrder!.Id.ToString() : null)"
+           class="btn btn-outline-secondary touch-btn px-4">إلغاء</a>
+    </div>
+</form>
+
+}
+
+@section Scripts {
+<script>
+(function () {
+    var form = document.getElementById('poForm');
+    // الشاشة قد تُعرض بلا نموذج (لا مورد نشط) فنخرج بلا خطأ في الطرفية
+    if (!form) return;
+
+    var rows = Array.prototype.slice.call(document.querySelectorAll('tr[data-row]'));
+    var discountInput = document.getElementById('discountInput');
+
+    function money(n) {
+        return (Math.round(n * 100) / 100).toFixed(2);
+    }
+
+    function recalc() {
+        var items = 0, qtySum = 0, sub = 0;
+
+        rows.forEach(function (tr) {
+            var qty = parseInt(tr.querySelector('.qty-in').value, 10) || 0;
+            var cost = parseFloat(tr.querySelector('.cost-in').value) || 0;
+            var total = qty * cost;
+
+            tr.querySelector('.line-total').textContent = money(total);
+            // الصف الفعّال يُميَّز بصريًا فيُرى ما يُشترى بلا تدقيق في الأرقام
+            tr.classList.toggle('table-active', qty > 0);
+
+            if (qty > 0) { items++; qtySum += qty; sub += total; }
+        });
+
+        var pct = parseFloat(discountInput.value) || 0;
+        if (pct < 0) pct = 0;
+        if (pct > 100) pct = 100;
+
+        var totalAfter = sub - (sub * pct / 100);
+
+        document.getElementById('sumItems').textContent = items;
+        document.getElementById('sumQty').textContent = qtySum;
+        document.getElementById('sumSub').textContent = money(sub);
+        document.getElementById('sumTotal').textContent = money(totalAfter);
+    }
+
+    rows.forEach(function (tr) {
+        tr.querySelector('.qty-in').addEventListener('input', recalc);
+        tr.querySelector('.cost-in').addEventListener('input', recalc);
+    });
+    discountInput.addEventListener('input', recalc);
+    recalc();
+
+    // ⭐ الصفوف الصفرية تُنزع أسماؤها من الثلاثة معًا (المعرّف والتكلفة
+    // والكمية) قبل الإرسال. نزع اسم أحدها فقط يُفقد التوازي بين المصفوفات
+    // فتُسند تكلفة صنف لصنف آخر — وهو خطأ مالي لا يُكتشف إلا بعد الدفع.
+    form.addEventListener('submit', function () {
+        var any = false;
+        rows.forEach(function (tr) {
+            var qtyIn = tr.querySelector('.qty-in');
+            var costIn = tr.querySelector('.cost-in');
+            var idIn = tr.querySelector('input[type=hidden]');
+            var qty = parseInt(qtyIn.value, 10) || 0;
+
+            if (qty <= 0) {
+                qtyIn.removeAttribute('name');
+                costIn.removeAttribute('name');
+                idIn.removeAttribute('name');
+            } else {
+                any = true;
+            }
+        });
+
+        if (!any) {
+            alert('أدخل كمية لصنف واحد على الأقل');
+            // إعادة الأسماء وإلا فسدت الشاشة بعد الإلغاء
+            rows.forEach(function (tr) {
+                tr.querySelector('.qty-in').setAttribute('name', 'quantities');
+                tr.querySelector('.cost-in').setAttribute('name', 'unitCosts');
+                tr.querySelector('input[type=hidden]').setAttribute('name', 'productIds');
+            });
+            return false;
+        }
+    });
+
+    // الفلتر والبحث يمرّان بالخادم: القائمة قد تكون كبيرة
+    function applyFilter() {
+        var q = encodeURIComponent(document.getElementById('searchBox').value || '');
+        var low = document.getElementById('lowOnly').checked;
+        var wid = @warehouseId;
+        location.href = '?warehouseId=' + wid + '&search=' + q + '&lowStockOnly=' + low;
+    }
+
+    document.getElementById('applyFilter').addEventListener('click', applyFilter);
+    document.getElementById('searchBox').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); applyFilter(); }
+    });
+    document.getElementById('lowOnly').addEventListener('change', applyFilter);
+})();
+</script>
+}

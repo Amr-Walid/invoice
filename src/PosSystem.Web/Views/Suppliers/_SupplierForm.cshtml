@@ -1,0 +1,53 @@
+@model PosSystem.Web.Models.Entities.Supplier
+
+<div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+
+<input type="hidden" asp-for="Id" />
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" autofocus
+               placeholder="مثال: شركة النيل للهواتف" />
+        <span asp-validation-for="Name" class="text-danger small"></span>
+    </div>
+
+    <div class="col-md-6">
+        <label asp-for="Phone" class="form-label"></label>
+        <input asp-for="Phone" class="form-control num" dir="ltr"
+               placeholder="01xxxxxxxxx" />
+        <span asp-validation-for="Phone" class="text-danger small"></span>
+        @* الرقم هو مُعرِّف المورد الحقيقي لا اسمه: نوضّح ذلك للمستخدم كي
+           يُدخله بعناية، فهو ما يمنع إنشاء موردين مكرّرين لجهة واحدة *@
+        <div class="form-text">
+            <i class="bi bi-info-circle"></i>
+            الهاتف هو مُعرِّف المورد — لا يُقبل رقم مسجَّل لمورد آخر
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <label asp-for="ContactPerson" class="form-label"></label>
+        <input asp-for="ContactPerson" class="form-control"
+               placeholder="اسم من نتواصل معه عند التوريد" />
+        <span asp-validation-for="ContactPerson" class="text-danger small"></span>
+    </div>
+
+    <div class="col-md-6">
+        <label asp-for="Email" class="form-label"></label>
+        <input asp-for="Email" class="form-control" dir="ltr" />
+        <span asp-validation-for="Email" class="text-danger small"></span>
+    </div>
+
+    <div class="col-12">
+        <label asp-for="Address" class="form-label"></label>
+        <input asp-for="Address" class="form-control" />
+        <span asp-validation-for="Address" class="text-danger small"></span>
+    </div>
+
+    <div class="col-12">
+        <label asp-for="Notes" class="form-label"></label>
+        <textarea asp-for="Notes" class="form-control" rows="2"
+                  placeholder="شروط الدفع، مواعيد التوريد، ملاحظات أخرى…"></textarea>
+        <span asp-validation-for="Notes" class="text-danger small"></span>
+    </div>
+</div>

@@ -1,0 +1,388 @@
+@model PosSystem.Web.Models.Entities.StockTransfer
+@using PosSystem.Web.Models.Entities
+@using PosSystem.Web.Controllers
+@{
+    ViewData["Title"] = $"تحويل {Model.TransferNumber}";
+    var access = (TransfersController.TransferAccess)ViewBag.Access;
+
+    // الأزرار تظهر بشرطين: الحالة تسمح، والمستخدم على الجهة الصحيحة.
+    var showDecide = Model.CanDecide && access.IsSource;
+    var showShip = Model.CanShip && access.IsSource;
+    var showReceive = Model.CanReceive && access.IsDestination;
+    var showCancel = Model.CanCancel && access.IsDestination;
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-arrow-left-right"></i>
+        <span class="num">@Model.TransferNumber</span>
+        <span class="badge @TransferStatusLabel.Badge(Model.Status)">
+            @TransferStatusLabel.Of(Model.Status)
+        </span>
+    </h1>
+    <a class="btn btn-outline-secondary touch-btn" asp-action="Index">
+        <i class="bi bi-arrow-right"></i> طلباتي
+    </a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="card h-100"><div class="card-body">
+            <div class="text-muted small">من مخزن (المصدر)</div>
+            <div class="fs-5 fw-bold">@(Model.FromWarehouse?.DisplayName ?? "—")</div>
+            <hr />
+            <div class="text-muted small">إلى مخزن (الطالب)</div>
+            <div class="fs-5 fw-bold">@(Model.ToWarehouse?.DisplayName ?? "—")</div>
+        </div></div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card h-100"><div class="card-body">
+            @* مسار التنفيذ كاملًا: من فعل ماذا ومتى. الأسماء محفوظة لحظة
+               الحدث فلا يمحوها تعديل مستخدم أو حذفه. *@
+            <div class="text-muted small mb-2">مسار الطلب</div>
+            <ul class="list-unstyled mb-0 small">
+                <li class="mb-1">
+                    <i class="bi bi-1-circle text-primary"></i>
+                    <b>طلبه</b> @Model.RequestedByName
+                    <span class="text-muted num">@Model.RequestedAt.ToString("yyyy-MM-dd HH:mm")</span>
+                </li>
+                @if (Model.ApprovedAt is not null)
+                {
+                    <li class="mb-1">
+                        <i class="bi bi-2-circle text-success"></i>
+                        <b>اعتمده</b> @Model.ApprovedByName
+                        <span class="text-muted num">@Model.ApprovedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
+                    </li>
+                }
+                @if (Model.ShippedAt is not null)
+                {
+                    <li class="mb-1">
+                        <i class="bi bi-3-circle text-primary"></i>
+                        <b>شحنه</b> @Model.ShippedByName
+                        <span class="text-muted num">@Model.ShippedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
+                    </li>
+                }
+                @if (Model.ReceivedAt is not null)
+                {
+                    <li class="mb-1">
+                        <i class="bi bi-4-circle text-success"></i>
+                        <b>استلمه</b> @Model.ReceivedByName
+                        <span class="text-muted num">@Model.ReceivedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
+                    </li>
+                }
+                @if (Model.Status == TransferStatus.Rejected)
+                {
+                    <li class="text-danger">
+                        <i class="bi bi-x-circle"></i> <b>رفضه</b> @Model.ApprovedByName
+                    </li>
+                }
+            </ul>
+        </div></div>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.Notes))
+{
+    <div class="alert alert-light border">
+        <i class="bi bi-sticky"></i> <b>ملاحظات الطالب:</b> @Model.Notes
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.RejectionReason))
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-x-octagon"></i> <b>سبب الرفض:</b> @Model.RejectionReason
+    </div>
+}
+
+@if (Model.TotalInTransit > 0)
+{
+    <div class="alert alert-warning d-flex align-items-center gap-2">
+        <i class="bi bi-truck fs-4"></i>
+        <div>
+            <b class="num">@Model.TotalInTransit</b> قطعة خرجت من «@(Model.FromWarehouse?.Name)»
+            ولم تُسجَّل في «@(Model.ToWarehouse?.Name)» — ليست في رصيد أي مخزن حاليًا.
+        </div>
+    </div>
+}
+
+@* ==================== جدول الأصناف ==================== *@
+<div class="table-wrap mb-3">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>المنتج</th>
+                    <th style="width:150px">الباركود</th>
+                    <th style="width:100px">مطلوب</th>
+                    <th style="width:100px">مشحون</th>
+                    <th style="width:100px">مستلم</th>
+                    <th style="width:110px">في الطريق</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var it in Model.Items)
+                {
+                    <tr>
+                        <td class="fw-bold">@it.ProductName</td>
+                        <td class="num small text-muted">@it.Barcode</td>
+                        <td class="num">@it.RequestedQuantity</td>
+                        <td class="num">
+                            @if (Model.Status >= TransferStatus.Shipped
+                                 && Model.Status != TransferStatus.Rejected
+                                 && Model.Status != TransferStatus.Cancelled)
+                            {
+                                <span class="@(it.IsPartiallyShipped ? "text-warning fw-bold" : "")">
+                                    @it.ShippedQuantity
+                                </span>
+                                @if (it.IsPartiallyShipped)
+                                {
+                                    <div class="small text-warning">نقص @(it.RequestedQuantity - it.ShippedQuantity)</div>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td class="num">
+                            @if (it.ReceivedQuantity > 0)
+                            {
+                                <span class="@(it.HasShortage ? "text-danger fw-bold" : "")">
+                                    @it.ReceivedQuantity
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td class="num">
+                            @if (it.InTransitQuantity > 0)
+                            {
+                                <span class="badge badge-soft-purple num">@it.InTransitQuantity</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="fw-bold">
+                    <td colspan="2">الإجمالي</td>
+                    <td class="num">@Model.TotalRequested</td>
+                    <td class="num">@Model.TotalShipped</td>
+                    <td class="num">@Model.TotalReceived</td>
+                    <td class="num">@Model.TotalInTransit</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+@* ==================== الإجراءات ==================== *@
+@if (showDecide || showShip || showReceive || showCancel)
+{
+    <div class="card mb-4">
+        <div class="card-body d-flex gap-2 flex-wrap">
+            @if (showDecide)
+            {
+                <form method="post" asp-action="Approve" asp-route-id="@Model.Id" class="m-0">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-success touch-btn">
+                        <i class="bi bi-check-lg"></i> اعتماد الطلب
+                    </button>
+                </form>
+                <button class="btn btn-outline-danger touch-btn"
+                        data-bs-toggle="modal" data-bs-target="#rejectModal">
+                    <i class="bi bi-x-lg"></i> رفض الطلب
+                </button>
+            }
+
+            @if (showShip)
+            {
+                <button class="btn btn-brand touch-btn" data-bs-toggle="modal" data-bs-target="#shipModal">
+                    <i class="bi bi-truck"></i> شحن القطع
+                </button>
+            }
+
+            @if (showReceive)
+            {
+                <button class="btn btn-brand touch-btn" data-bs-toggle="modal" data-bs-target="#receiveModal">
+                    <i class="bi bi-box-arrow-in-down"></i> تسجيل الاستلام
+                </button>
+            }
+
+            @if (showCancel)
+            {
+                <form method="post" asp-action="Cancel" asp-route-id="@Model.Id" class="m-0"
+                      onsubmit="return confirm('إلغاء طلب التحويل @Model.TransferNumber؟');">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-outline-secondary touch-btn">
+                        <i class="bi bi-slash-circle"></i> إلغاء الطلب
+                    </button>
+                </form>
+            }
+        </div>
+    </div>
+}
+else if (Model.IsClosed)
+{
+    <div class="alert alert-secondary">
+        <i class="bi bi-lock"></i> الطلب منتهٍ («@TransferStatusLabel.Of(Model.Status)») — لا إجراء بعده.
+    </div>
+}
+else
+{
+    <div class="alert alert-info">
+        <i class="bi bi-hourglass-split"></i>
+        الطلب في حالة «@TransferStatusLabel.Of(Model.Status)» —
+        الإجراء التالي مسؤولية
+        @(Model.CanReceive ? $"مخزن «{Model.ToWarehouse?.Name}» (الاستلام)"
+                           : $"مخزن «{Model.FromWarehouse?.Name}»").
+    </div>
+}
+
+@* ==================== نافذة الرفض ==================== *@
+@if (showDecide)
+{
+    <div class="modal fade" id="rejectModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form method="post" asp-action="Reject" asp-route-id="@Model.Id" class="modal-content">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title">رفض طلب التحويل</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">سبب الرفض <span class="text-danger">*</span></label>
+                    <textarea name="reason" class="form-control" rows="3" maxlength="300" required
+                              placeholder="مثال: الكمية مطلوبة لمبيعات هذا المخزن"></textarea>
+                    <div class="form-text">
+                        السبب يظهر للمخزن الطالب — بلا سبب لن يعرف كيف يتصرف.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">تراجع</button>
+                    <button type="submit" class="btn btn-danger">تأكيد الرفض</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+@* ==================== نافذة الشحن ==================== *@
+@if (showShip)
+{
+    <div class="modal fade" id="shipModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <form method="post" asp-action="Ship" asp-route-id="@Model.Id" class="modal-content">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-truck"></i> شحن من «@(Model.FromWarehouse?.Name)»</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning py-2">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        الشحن يخصم الكميات من مخزنك الآن. الكمية قابلة للتقليل إن كان
+                        المتاح أقل — لكن لا يمكن أن تزيد عن المطلوب.
+                    </div>
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>المنتج</th>
+                                <th style="width:100px">مطلوب</th>
+                                <th style="width:150px">الكمية المشحونة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var it in Model.Items)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">@it.ProductName</div>
+                                        <div class="small text-muted num">@it.Barcode</div>
+                                    </td>
+                                    <td class="num">@it.RequestedQuantity</td>
+                                    <td>
+                                        <input type="hidden" name="productIds" value="@it.ProductId" />
+                                        <input type="number" name="quantities" class="form-control"
+                                               value="@it.RequestedQuantity" min="0" max="@it.RequestedQuantity" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">تراجع</button>
+                    <button type="submit" class="btn btn-brand">
+                        <i class="bi bi-truck"></i> تأكيد الشحن والخصم
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+@* ==================== نافذة الاستلام ==================== *@
+@if (showReceive)
+{
+    <div class="modal fade" id="receiveModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <form method="post" asp-action="Receive" asp-route-id="@Model.Id" class="modal-content">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-box-arrow-in-down"></i> استلام في «@(Model.ToWarehouse?.Name)»
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2">
+                        <i class="bi bi-info-circle"></i>
+                        عُدّ القطع فعليًا قبل التأكيد. الاستلام يضيفها لرصيد مخزنك،
+                        وأي نقص عن المشحون يُسجَّل في سجل العمليات للمراجعة.
+                    </div>
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>المنتج</th>
+                                <th style="width:100px">مشحون</th>
+                                <th style="width:150px">الكمية المستلمة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var it in Model.Items.Where(i => i.ShippedQuantity > 0))
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">@it.ProductName</div>
+                                        <div class="small text-muted num">@it.Barcode</div>
+                                    </td>
+                                    <td class="num">@it.ShippedQuantity</td>
+                                    <td>
+                                        <input type="hidden" name="productIds" value="@it.ProductId" />
+                                        <input type="number" name="quantities" class="form-control"
+                                               value="@it.ShippedQuantity" min="0" max="@it.ShippedQuantity" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">تراجع</button>
+                    <button type="submit" class="btn btn-brand">
+                        <i class="bi bi-check-lg"></i> تأكيد الاستلام والإضافة
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+}

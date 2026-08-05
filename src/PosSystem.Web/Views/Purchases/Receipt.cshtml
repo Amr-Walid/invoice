@@ -1,0 +1,98 @@
+@model PosSystem.Web.Models.Entities.PurchaseReceipt
+@{
+    ViewData["Title"] = "إذن استلام " + Model.ReceiptNumber;
+    var order = Model.PurchaseOrder;
+}
+
+<div class="text-center no-print mb-3">
+    <button class="btn btn-brand touch-btn px-4" onclick="window.print()">
+        <i class="bi bi-printer"></i> طباعة الإذن
+    </button>
+    @if (order is not null)
+    {
+        <a class="btn btn-outline-secondary touch-btn px-4"
+           asp-action="Details" asp-route-id="@Model.PurchaseOrderId">
+            <i class="bi bi-arrow-right"></i> رجوع لأمر الشراء
+        </a>
+    }
+    <p class="text-muted mt-2" style="font-size:.82rem">
+        اطبع نسختين: واحدة تُوقَّع وتُحفظ مع فاتورة المورد، والثانية تبقى في المخزن
+    </p>
+</div>
+
+<div class="receipt print-area">
+    <h1>نظام المبيعات</h1>
+    <div class="r-sub">إذن استلام بضاعة</div>
+
+    <div class="r-sep"></div>
+
+    <div class="r-line"><span>رقم الإذن:</span><strong class="num">@Model.ReceiptNumber</strong></div>
+    <div class="r-line">
+        <span>أمر الشراء:</span>
+        <span class="num">@(order?.PurchaseNumber ?? "-")</span>
+    </div>
+    <div class="r-line"><span>التاريخ:</span><span class="num">@Model.CreatedAt.ToString("yyyy-MM-dd")</span></div>
+    <div class="r-line"><span>الوقت:</span><span class="num">@Model.CreatedAt.ToString("HH:mm")</span></div>
+    <div class="r-line"><span>المورد:</span><span>@(order?.SupplierName ?? "-")</span></div>
+    <div class="r-line"><span>المخزن:</span><span>@(Model.Warehouse?.Name ?? "-")</span></div>
+    <div class="r-line"><span>المستلِم:</span><span>@Model.ReceivedByName</span></div>
+
+    <div class="r-sep"></div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>الصنف</th>
+                <th style="width:44px" class="text-center">المستلم</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td>@item.ProductName</td>
+                    <td class="text-center num">@item.Quantity</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="r-sep"></div>
+
+    <div class="r-line r-total">
+        <span>إجمالي القطع:</span><span class="num">@Model.TotalQuantity</span>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Notes))
+    {
+        <div class="r-sep"></div>
+        <div style="font-size:.78rem">
+            <strong>ملاحظات:</strong><br />
+            @Model.Notes
+        </div>
+    }
+
+    <div class="r-sep"></div>
+
+    @* التوقيعان هما قيمة الورقة: بدونهما لا يُثبت من استلم ولا من سلّم *@
+    <div style="font-size:.78rem; line-height:2.4">
+        توقيع المستلِم: ..........................<br />
+        توقيع المورد / المندوب: ..................
+    </div>
+
+    <div class="r-sep"></div>
+
+    <div class="r-foot">
+        هذه القطع أُضيفت لرصيد المخزن<br />
+        <span class="num">@Model.ReceiptNumber</span>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // الطباعة الفورية بعد الاستلام — الرابط يُفتح بـ ?print=1
+        if (new URLSearchParams(location.search).get('print') === '1') {
+            window.addEventListener('load', function () { window.print(); });
+        }
+    </script>
+}

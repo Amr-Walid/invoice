@@ -1,0 +1,100 @@
+@model PosSystem.Web.Models.Entities.Product
+@{
+    ViewData["Title"] = "ملصق باركود — " + Model.Name;
+    var copies = (int)ViewBag.Copies;
+    var svg = (string)ViewBag.BarcodeSvg;
+}
+
+@section Styles {
+    <style>
+        /* الـ CSS العام يضبط ‎@@page‎ على 80mm (ورق الفواتير الحرارية).
+           ملصقات الباركود تُطبع على A4، و‎@@page‎ لا يمكن ربطها بعنصر،
+           لذا نُعيد تعريفها هنا على مستوى هذه الصفحة فقط. */
+        @@media print {
+            @@page { size: A4 portrait; margin: 8mm; }
+        }
+    </style>
+}
+
+@* ============ شريط التحكم: لا يُطبع (no-print) ============ *@
+<div class="no-print mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h1 class="page-title mb-0">
+            <i class="bi bi-upc-scan"></i> ملصق الباركود
+        </h1>
+        <a class="btn btn-outline-secondary" asp-action="Index">
+            <i class="bi bi-arrow-right"></i> رجوع للمنتجات
+        </a>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <div class="text-muted" style="font-size:.82rem">المنتج</div>
+                    <div class="fw-bold">@Model.Name</div>
+                    <div class="num barcode-text text-muted" dir="ltr">@Model.Barcode</div>
+                </div>
+
+                <form class="col-md-4" method="get" asp-action="Barcode">
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <label class="form-label">عدد الملصقات</label>
+                    <div class="input-group">
+                        <input type="number" name="copies" class="form-control num" dir="ltr"
+                               min="1" max="60" value="@copies" />
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-repeat"></i> تحديث
+                        </button>
+                    </div>
+                    <small class="text-muted">حتى 60 ملصقًا في الصفحة</small>
+                </form>
+
+                <div class="col-md-3">
+                    <button class="btn btn-brand w-100 touch-btn" onclick="window.print()">
+                        <i class="bi bi-printer"></i> طباعة
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-info py-2 px-3" style="font-size:.86rem">
+        <i class="bi bi-info-circle"></i>
+        <strong>نصائح للطباعة الصحيحة:</strong>
+        اضبط مقياس الطباعة على <strong>100%</strong> (لا «ملاءمة الصفحة») — تصغير المقياس
+        يُضيّق الأشرطة فيرفضها الماسح. واستخدم طباعة <strong>أبيض وأسود</strong> بأعلى دقة،
+        وتأكد من تعطيل «الرؤوس والتذييلات» في إعدادات المتصفح.
+    </div>
+</div>
+
+@* ============ منطقة الطباعة ============ *@
+<div class="label-sheet print-area">
+    @for (var i = 0; i < copies; i++)
+    {
+        <div class="bc-label">
+            <div class="bc-name">@Model.Name</div>
+            <div class="bc-svg">@Html.Raw(svg)</div>
+            <div class="bc-price">
+                <span class="num">@Model.Price.ToString("N2")</span> ج.م
+            </div>
+            @if (Model.Brand is not null)
+            {
+                <div class="bc-brand">@Model.Brand.Name</div>
+            }
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        // فتح حوار الطباعة تلقائيًا عند الوصول من زر «طباعة الباركود» في قائمة المنتجات.
+        // ننتظر load لا DOMContentLoaded: الـ SVG يجب أن يكتمل تخطيطه قبل الطباعة،
+        // وإلا طبعت بعض المتصفحات إطارًا فارغًا.
+        (function () {
+            if (new URLSearchParams(location.search).get('autoprint') !== '1') return;
+            window.addEventListener('load', function () {
+                setTimeout(function () { window.print(); }, 250);
+            });
+        })();
+    </script>
+}

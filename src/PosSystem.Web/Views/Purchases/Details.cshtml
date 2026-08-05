@@ -1,0 +1,477 @@
+@model PosSystem.Web.Models.ViewModels.PurchaseDetailsVm
+@using PosSystem.Web.Models.Entities
+@{
+    var o = Model.Order;
+    ViewData["Title"] = $"أمر شراء {o.PurchaseNumber}";
+    var isAdmin = (bool)(ViewBag.IsAdmin ?? false);
+    var canCancel = (bool)(ViewBag.CanCancel ?? false);
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-cart"></i>
+        <span class="num">@o.PurchaseNumber</span>
+        <span class="badge @PurchaseStatusLabel.Badge(o.Status)">@PurchaseStatusLabel.Of(o.Status)</span>
+    </h1>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-outline-secondary touch-btn" asp-action="Index">
+            <i class="bi bi-arrow-right"></i> كل الأوامر
+        </a>
+    </div>
+</div>
+
+@* ===== شريط الحالة: أهم رسالة في الشاشة ===== *@
+@if (o.Status == PurchaseStatus.Draft)
+{
+    <div class="alert alert-secondary">
+        <i class="bi bi-pencil"></i>
+        <strong>مسودة</strong> — لم تُرسَل للمورد بعد، وقابلة للتعديل والحذف.
+        لا كميات في المخزون.
+    </div>
+}
+else if (o.Status == PurchaseStatus.Confirmed)
+{
+    <div class="alert alert-primary">
+        <i class="bi bi-send"></i>
+        <strong>مُعتمد ومُرسَل للمورد</strong> — بانتظار التوريد.
+        الكميات <strong>لم تُضَف للمخزون</strong> ولن تُضاف قبل تسجيل الاستلام.
+    </div>
+}
+else if (o.Status == PurchaseStatus.PartiallyReceived)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-hourglass-split"></i>
+        <strong>استلام جزئي</strong> — وصل <span class="num">@o.TotalReceived</span> من
+        <span class="num">@o.TotalOrdered</span> قطعة، ومتبقٍ
+        <strong class="num">@o.TotalRemaining</strong> قطعة لم تُورَّد بعد.
+    </div>
+}
+else if (o.Status == PurchaseStatus.Received)
+{
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i>
+        <strong>مستلم بالكامل</strong> — كل الكميات أُضيفت لمخزن
+        «@(o.Warehouse?.Name)» في @o.CompletedAt?.ToString("yyyy-MM-dd HH:mm").
+    </div>
+}
+else if (o.Status == PurchaseStatus.Cancelled)
+{
+    <div class="alert alert-danger">
+        <i class="bi bi-x-circle"></i>
+        <strong>أمر ملغي</strong>
+        @if (!string.IsNullOrWhiteSpace(o.CancellationReason))
+        {
+            <span>— السبب: @o.CancellationReason</span>
+        }
+        @if (o.TotalReceived > 0)
+        {
+            @* قاعدة جوهرية: ما استُلم لا يُسحب. القطع موجودة فعلًا *@
+            <div class="mt-2 small">
+                <i class="bi bi-info-circle"></i>
+                <span class="num">@o.TotalReceived</span> قطعة كانت قد استُلمت وتبقى في
+                المخزون — هي موجودة فعلًا ولا تُسحب بالإلغاء.
+            </div>
+        }
+    </div>
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-truck"></i> المورد والمخزن</div>
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    <dt class="col-5 text-muted">المورد</dt>
+                    <dd class="col-7 fw-bold">
+                        @* الاسم المعروض هو snapshot لحظة الأمر لا الاسم الحالي *@
+                        <a asp-controller="Suppliers" asp-action="Details" asp-route-id="@o.SupplierId"
+                           class="text-decoration-none">@o.SupplierName</a>
+                    </dd>
+
+                    <dt class="col-5 text-muted">هاتف المورد</dt>
+                    <dd class="col-7 num" dir="ltr">@(o.Supplier?.Phone ?? "—")</dd>
+
+                    <dt class="col-5 text-muted">المخزن المستقبِل</dt>
+                    <dd class="col-7 fw-bold">@(o.Warehouse?.Name ?? "—")</dd>
+
+                    <dt class="col-5 text-muted">التوريد المتوقع</dt>
+                    <dd class="col-7 num">
+                        @if (o.ExpectedDate.HasValue)
+                        {
+                            @o.ExpectedDate.Value.ToString("yyyy-MM-dd")
+                            @if (o.ExpectedDate.Value.Date < DateTime.Today && o.CanReceive)
+                            {
+                                <span class="badge badge-soft-red ms-1">متأخر</span>
+                            }
+                        }
+                        else
+                        {
+                            <span class="text-muted">غير محدَّد</span>
+                        }
+                    </dd>
+                </dl>
+
+                @if (!string.IsNullOrWhiteSpace(o.Notes))
+                {
+                    <hr />
+                    <div class="small"><span class="text-muted">ملاحظات:</span> @o.Notes</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-clock-history"></i> مسار الأمر</div>
+            <div class="card-body">
+                @* أربع مراحل ظاهرة: من فعل ماذا ومتى — أول ما يُسأل عنه *@
+                <ul class="list-unstyled mb-0 small">
+                    <li class="mb-2">
+                        <i class="bi bi-1-circle-fill text-primary"></i>
+                        <strong>أُنشئ</strong> — @o.CreatedByName
+                        <span class="num text-muted">@o.CreatedAt.ToString("yyyy-MM-dd HH:mm")</span>
+                    </li>
+                    <li class="mb-2">
+                        @if (o.ConfirmedAt.HasValue)
+                        {
+                            @* كل نص هنا داخل عنصر: النص العاري داخل كتلة كود
+                               متداخلة يُقرأ كـ C# لا كـ HTML فيفشل التصريف *@
+                            <i class="bi bi-2-circle-fill text-primary"></i>
+                            <strong>اعتُمد</strong>
+                            <span>— @o.ConfirmedByName</span>
+                            <span class="num text-muted">@o.ConfirmedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-2-circle text-muted"></i>
+                            <span class="text-muted">لم يُعتمد بعد</span>
+                        }
+                    </li>
+                    <li class="mb-2">
+                        @if (o.Receipts.Any())
+                        {
+                            <i class="bi bi-3-circle-fill text-primary"></i>
+                            <strong>استُلم</strong>
+                            <span>
+                                — <span class="num">@o.Receipts.Count</span> إذن استلام،
+                                <span class="num">@o.TotalReceived</span> قطعة
+                            </span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-3-circle text-muted"></i>
+                            <span class="text-muted">لم يُستلم شيء بعد</span>
+                        }
+                    </li>
+                    <li>
+                        @if (o.IsClosed)
+                        {
+                            <i class="bi bi-4-circle-fill @(o.Status == PurchaseStatus.Received ? "text-success" : "text-danger")"></i>
+                            <strong>@(o.Status == PurchaseStatus.Received ? "أُغلق مكتملًا" : "أُغلق ملغيًا")</strong>
+                            <span class="num text-muted">@(o.CompletedAt?.ToString("yyyy-MM-dd HH:mm"))</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-4-circle text-muted"></i>
+                            <span class="text-muted">الأمر ما زال مفتوحًا</span>
+                        }
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ===== الأصناف ===== *@
+<div class="card mb-3">
+    <div class="card-header"><i class="bi bi-box"></i> أصناف الأمر</div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>الصنف</th>
+                    <th style="width:120px">الباركود</th>
+                    <th style="width:110px">تكلفة الوحدة</th>
+                    <th style="width:90px">مطلوب</th>
+                    <th style="width:90px">مستلم</th>
+                    <th style="width:90px">متبقٍ</th>
+                    <th style="width:110px">إجمالي السطر</th>
+                    <th style="width:110px">الرصيد الآن</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var it in o.Items)
+                {
+                    var here = Model.StockHere.TryGetValue(it.ProductId, out var q) ? q : 0;
+                    <tr>
+                        <td class="fw-bold">@it.ProductName</td>
+                        <td class="num small" dir="ltr">@it.Barcode</td>
+                        <td class="num">@it.UnitCost.ToString("N2")</td>
+                        <td class="num">@it.Quantity</td>
+                        <td class="num">@it.ReceivedQuantity</td>
+                        <td class="num">
+                            @if (it.RemainingQuantity > 0)
+                            {
+                                @* المتبقّي يُبرز: هو ما يُطالَب به المورد *@
+                                <span class="badge badge-soft-orange num">@it.RemainingQuantity</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-soft-green">تم</span>
+                            }
+                        </td>
+                        <td class="num fw-bold">@it.LineTotal.ToString("N2")</td>
+                        <td class="num">
+                            <span class="badge badge-soft-gray num">@here</span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="fw-bold">
+                    <td colspan="3" class="text-end">المجاميع</td>
+                    <td class="num">@o.TotalOrdered</td>
+                    <td class="num">@o.TotalReceived</td>
+                    <td class="num">@o.TotalRemaining</td>
+                    <td class="num">@o.SubTotal.ToString("N2")</td>
+                    <td></td>
+                </tr>
+                @if (o.DiscountPercentage > 0)
+                {
+                    <tr>
+                        <td colspan="6" class="text-end text-muted">
+                            خصم @o.DiscountPercentage.ToString("0.##")%
+                        </td>
+                        <td class="num text-danger">-@o.DiscountAmount.ToString("N2")</td>
+                        <td></td>
+                    </tr>
+                }
+                <tr class="fw-bold fs-5">
+                    <td colspan="6" class="text-end">الإجمالي</td>
+                    <td class="num text-primary">@o.Total.ToString("N2")</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+@* ===== أذون الاستلام ===== *@
+@if (o.Receipts.Any())
+{
+    <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-box-seam"></i> أذون الاستلام (@o.Receipts.Count)</div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:170px">رقم الإذن</th>
+                        <th style="width:150px">التاريخ</th>
+                        <th>المستلم</th>
+                        <th style="width:90px">القطع</th>
+                        <th>ملاحظات</th>
+                        <th style="width:110px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in o.Receipts)
+                    {
+                        <tr>
+                            <td class="num fw-bold">@r.ReceiptNumber</td>
+                            <td class="num small">@r.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@r.ReceivedByName</td>
+                            <td class="num">@r.Items.Sum(x => x.Quantity)</td>
+                            <td class="small text-muted">@(string.IsNullOrWhiteSpace(r.Notes) ? "—" : r.Notes)</td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-secondary"
+                                   asp-action="Receipt" asp-route-id="@r.Id" target="_blank">
+                                    <i class="bi bi-printer"></i> طباعة
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@* ===== شريط الإجراءات ===== *@
+<div class="d-flex gap-2 flex-wrap mb-4">
+    @if (isAdmin && o.CanEdit)
+    {
+        <a class="btn btn-outline-primary touch-btn" asp-action="Edit" asp-route-id="@o.Id">
+            <i class="bi bi-pencil"></i> تعديل
+        </a>
+    }
+
+    @if (isAdmin && o.CanConfirm)
+    {
+        <form asp-action="Confirm" asp-route-id="@o.Id" method="post" class="d-inline"
+              onsubmit="return confirm('اعتماد الأمر يعني إرساله للمورد، ولن يكون قابلًا للتعديل بعدها. متابعة؟');">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-brand touch-btn">
+                <i class="bi bi-check2-circle"></i> اعتماد وإرسال للمورد
+            </button>
+        </form>
+    }
+
+    @if (Model.CanReceive)
+    {
+        <button type="button" class="btn btn-success touch-btn"
+                data-bs-toggle="modal" data-bs-target="#receiveModal">
+            <i class="bi bi-box-arrow-in-down"></i> تسجيل استلام
+        </button>
+    }
+    else if (o.CanReceive)
+    {
+        @* الأمر قابل للاستلام لكن هذا المستخدم ليس مسؤول مخزنه: نُفسّر
+           السبب بدلًا من إخفاء الزر بلا كلمة *@
+        <span class="align-self-center text-muted small">
+            <i class="bi bi-shield-lock"></i>
+            الاستلام لمخزن «@(o.Warehouse?.Name)» يسجّله أمين ذلك المخزن أو المدير
+        </span>
+    }
+
+    @if (canCancel)
+    {
+        <button type="button" class="btn btn-outline-danger touch-btn"
+                data-bs-toggle="modal" data-bs-target="#cancelModal">
+            <i class="bi bi-x-circle"></i> إلغاء الأمر
+        </button>
+    }
+
+    @if (isAdmin && o.Status == PurchaseStatus.Draft)
+    {
+        <form asp-action="Delete" asp-route-id="@o.Id" method="post" class="d-inline"
+              onsubmit="return confirm('حذف المسودة نهائيًا؟');">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-outline-danger touch-btn">
+                <i class="bi bi-trash"></i> حذف المسودة
+            </button>
+        </form>
+    }
+</div>
+
+@* ===== نافذة الاستلام ===== *@
+@if (Model.CanReceive)
+{
+    <div class="modal fade" id="receiveModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <form asp-action="Receive" asp-route-id="@o.Id" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-box-arrow-in-down"></i>
+                            تسجيل استلام إلى «@(o.Warehouse?.Name)»
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info small">
+                            <i class="bi bi-info-circle"></i>
+                            الكميات المُدخلة تُضاف للمخزون فورًا ويُصدر لها إذن استلام مرقّم.
+                            الاستلام <strong>الجزئي مسموح</strong>: أدخل ما وصل فعلًا، ويبقى
+                            الباقي مطلوبًا من المورد.
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>الصنف</th>
+                                        <th style="width:90px">متبقٍ</th>
+                                        <th style="width:140px">الكمية الواصلة</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var it in o.Items.Where(i => i.RemainingQuantity > 0))
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div class="fw-bold">@it.ProductName</div>
+                                                <div class="small text-muted num" dir="ltr">@it.Barcode</div>
+                                                @* المفتاح معرّف السطر لا المنتج: الصنف قد
+                                                   يتكرر في سطرين بتكلفتين مختلفتين *@
+                                                <input type="hidden" name="itemIds" value="@it.Id" />
+                                            </td>
+                                            <td class="num">
+                                                <span class="badge badge-soft-orange num">@it.RemainingQuantity</span>
+                                            </td>
+                                            <td>
+                                                @* الافتراض هو المتبقّي كاملًا: التوريد الكامل
+                                                   هو الحالة الغالبة، والـ max يمنع استلام
+                                                   أكثر مما طُلب *@
+                                                <input type="number" name="quantities"
+                                                       class="form-control form-control-sm num"
+                                                       min="0" max="@it.RemainingQuantity"
+                                                       value="@it.RemainingQuantity" />
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="mt-3">
+                            <label class="form-label">ملاحظات الإذن</label>
+                            <input type="text" name="notes" class="form-control"
+                                   placeholder="رقم فاتورة المورد، اسم المندوب المُوصِّل، حالة الكرتونة…" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-success touch-btn">
+                            <i class="bi bi-check-lg"></i> تأكيد الاستلام وإضافة للمخزون
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@* ===== نافذة الإلغاء ===== *@
+@if (canCancel)
+{
+    <div class="modal fade" id="cancelModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-action="Cancel" asp-route-id="@o.Id" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-x-circle"></i> إلغاء أمر الشراء</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (o.TotalReceived > 0)
+                        {
+                            <div class="alert alert-warning small">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                استُلم من هذا الأمر <strong class="num">@o.TotalReceived</strong> قطعة
+                                وهي <strong>تبقى في المخزون</strong> — موجودة فعلًا ولا تُسحب
+                                بالإلغاء. الإلغاء يُغلق المتبقّي
+                                (<span class="num">@o.TotalRemaining</span> قطعة) فقط.
+                            </div>
+                        }
+
+                        <label class="form-label">سبب الإلغاء <span class="text-danger">*</span></label>
+                        @* السبب إلزامي: بدونه لا يُعرف لاحقًا لماذا أُلغي الأمر *@
+                        <textarea name="reason" class="form-control" rows="3" required
+                                  placeholder="مثال: المورد أبلغ بعدم توفر الكمية"></textarea>
+                        <div class="form-text">
+                            السبب يُحفظ في سجل العمليات ويظهر على الأمر دائمًا.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-danger touch-btn">
+                            <i class="bi bi-x-lg"></i> تأكيد الإلغاء
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">رجوع</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}

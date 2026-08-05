@@ -1,0 +1,53 @@
+@using PosSystem.Web.Models.Entities
+@{
+    var w = (Warehouse)ViewBag.Warehouse;
+    var canSwitch = (bool)(ViewBag.CanSwitch ?? false);
+    var current = ViewBag.Status as TransferStatus?;
+    var action = (string)(ViewData["FilterAction"] ?? "Index");
+
+    var statuses = new[]
+    {
+        TransferStatus.Pending, TransferStatus.Approved, TransferStatus.Shipped,
+        TransferStatus.Received, TransferStatus.Rejected, TransferStatus.Cancelled
+    };
+}
+
+<form method="get" asp-action="@action" class="row g-2 align-items-end mb-3">
+    @if (canSwitch)
+    {
+        @* المدير غير مرتبط بمخزن، فيعمل بالنيابة عن مخزن يختاره.
+           غير المدير لا يرى هذا الحقل لأن مخزنه مُلزِم — والخادم يتجاهل
+           أي قيمة يُرسلها على أي حال. *@
+        <div class="col-md-4">
+            <label class="form-label">المخزن العامل</label>
+            <select name="warehouseId" class="form-select" onchange="this.form.submit()">
+                @foreach (var opt in (List<Warehouse>)ViewBag.AllWarehouses)
+                {
+                    <option value="@opt.Id" selected="@(opt.Id == w.Id)">@opt.DisplayName</option>
+                }
+            </select>
+        </div>
+    }
+
+    <div class="col-md-4">
+        <label class="form-label">الحالة</label>
+        <select name="status" class="form-select" onchange="this.form.submit()">
+            <option value="">— كل الحالات —</option>
+            @foreach (var s in statuses)
+            {
+                <option value="@((int)s)" selected="@(current == s)">@TransferStatusLabel.Of(s)</option>
+            }
+        </select>
+    </div>
+
+    <div class="col-md-4">
+        <button type="submit" class="btn btn-outline-secondary touch-btn">
+            <i class="bi bi-funnel"></i> تصفية
+        </button>
+        @if (current is not null)
+        {
+            <a class="btn btn-link" asp-action="@action"
+               asp-route-warehouseId="@(canSwitch ? w.Id.ToString() : null)">إلغاء التصفية</a>
+        }
+    </div>
+</form>

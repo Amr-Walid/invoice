@@ -1,0 +1,182 @@
+@*
+    نافذة نقطة البيع.
+    السلة تُدار في المتصفح للسرعة، لكن الحساب النهائي يتم على السيرفر دائمًا.
+*@
+<div class="modal fade pos-modal" id="posModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-fullscreen-lg-down">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-upc-scan"></i> فاتورة جديدة
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+
+            <div class="modal-body">
+                @Html.AntiForgeryToken()
+
+                <div class="row g-3">
+                    <!-- ============ العمود الأيمن: المسح والسلة ============ -->
+                    <div class="col-lg-8">
+                        <div class="scan-box mb-3">
+                            <label class="form-label mb-2">
+                                <i class="bi bi-upc-scan"></i> امسح الباركود أو أدخله يدويًا ثم اضغط Enter
+                            </label>
+                            <div class="input-group">
+                                <input type="text" id="barcodeInput" class="form-control"
+                                       placeholder="| امسح الكود هنا" autocomplete="off" inputmode="numeric" />
+                                <button class="btn btn-camera px-3" type="button" id="btnOpenCamera"
+                                        title="مسح بالكاميرا">
+                                    <i class="bi bi-camera-fill"></i> الكاميرا
+                                </button>
+                                <button class="btn btn-brand px-3" type="button" id="btnAddBarcode">
+                                    <i class="bi bi-plus-lg"></i> إضافة
+                                </button>
+                            </div>
+                            <div id="scanFeedback" class="mt-2" style="min-height:24px;font-size:.86rem"></div>
+
+                            <!-- ============ ماسح الكاميرا ============ -->
+                            <div id="cameraPanel" class="camera-panel" style="display:none">
+                                <div class="camera-stage">
+                                    <video id="cameraVideo" playsinline muted></video>
+                                    <div class="camera-reticle"><span class="camera-laser"></span></div>
+                                </div>
+                                <div class="camera-bar">
+                                    <select id="cameraSelect" class="form-select form-select-sm"
+                                            style="display:none"></select>
+                                    <button type="button" class="btn btn-sm btn-outline-light" id="btnCloseCamera">
+                                        <i class="bi bi-x-lg"></i> إغلاق الكاميرا
+                                    </button>
+                                </div>
+                                <div id="cameraStatus" class="camera-status"></div>
+                            </div>
+                        </div>
+
+                        <div class="table-wrap">
+                            <div class="table-responsive">
+                                <table class="table table-hover cart-table mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:32px">#</th>
+                                            <th>المنتج</th>
+                                            <th style="width:110px">سعر الوحدة</th>
+                                            <th style="width:150px" class="text-center">الكمية</th>
+                                            <th style="width:120px">الإجمالي</th>
+                                            <th style="width:52px"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cartBody">
+                                        <tr id="emptyCartRow">
+                                            <td colspan="6" class="empty-state">
+                                                <i class="bi bi-cart-x"></i>
+                                                السلة فارغة — ابدأ بمسح باركود المنتج
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ============ العمود الأيسر: العميل والخصم والإجماليات ============ -->
+                    <div class="col-lg-4">
+                        <div class="card mb-3">
+                            <div class="card-header py-2" style="font-size:.92rem">
+                                <i class="bi bi-person"></i> بيانات العميل (اختياري)
+                            </div>
+                            <div class="card-body p-3">
+                                <input type="text" id="customerName" class="form-control mb-2"
+                                       placeholder="اسم العميل" maxlength="150" autocomplete="off" />
+                                @*
+                                    خانة الرقم فيها إكمال تلقائي: بمجرد كتابة أول أرقام
+                                    الهاتف تظهر العملاء المطابقون، فيُختار العميل بلا إعادة
+                                    كتابة اسمه — والفاتورة تُربط برقمه تلقائيًا على السيرفر.
+                                *@
+                                <div class="position-relative">
+                                    <input type="text" id="customerPhone" class="form-control" dir="ltr"
+                                           placeholder="رقم الهاتف" maxlength="30" autocomplete="off" />
+                                    <div id="customerSuggestions" class="customer-suggestions d-none"></div>
+                                </div>
+                                <div id="customerHint" class="mt-2 d-none" style="font-size:.8rem"></div>
+                            </div>
+                        </div>
+
+                        <div class="card mb-3">
+                            <div class="card-header py-2" style="font-size:.92rem">
+                                <i class="bi bi-ticket-perforated"></i> كود الخصم
+                            </div>
+                            <div class="card-body p-3">
+                                <div class="input-group">
+                                    <input type="text" id="couponInput" class="form-control" dir="ltr"
+                                           placeholder="COUPON CODE" maxlength="50" style="text-transform:uppercase" />
+                                    <button class="btn btn-outline-primary" type="button" id="btnApplyCoupon">
+                                        تطبيق
+                                    </button>
+                                </div>
+                                <div id="couponFeedback" class="mt-2" style="min-height:22px;font-size:.84rem"></div>
+                            </div>
+                        </div>
+
+                        <div class="totals-panel">
+                            <div class="totals-row">
+                                <span>عدد الأصناف</span>
+                                <strong class="num" id="sumCount">0</strong>
+                            </div>
+                            <div class="totals-row">
+                                <span>عدد القطع</span>
+                                <strong class="num" id="sumQty">0</strong>
+                            </div>
+                            <div class="totals-row">
+                                <span>الإجمالي الفرعي</span>
+                                <strong class="num" id="sumSubTotal">0.00</strong>
+                            </div>
+                            <div class="totals-row discount" id="discountRow" style="display:none">
+                                <span>الخصم (<span class="num" id="sumPct">0</span>%)</span>
+                                <strong class="num">- <span id="sumDiscount">0.00</span></strong>
+                            </div>
+                            <div class="totals-row grand">
+                                <span>الإجمالي الكلي</span>
+                                <strong class="num" id="sumTotal">0.00</strong>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn btn-checkout mt-3 touch-btn" id="btnCheckout" disabled>
+                            <i class="bi bi-check2-circle"></i> إتمام وحفظ الفاتورة
+                            <small class="d-block" style="font-size:.72rem;opacity:.85">F9</small>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary w-100 mt-2" id="btnClearCart">
+                            <i class="bi bi-trash3"></i> تفريغ السلة
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ نافذة نجاح البيع ============ -->
+<div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content text-center" style="border-radius:16px">
+            <div class="modal-body p-4">
+                <i class="bi bi-check-circle-fill text-success" style="font-size:3.6rem"></i>
+                <h5 class="fw-bold mt-3 mb-1">تم حفظ الفاتورة</h5>
+                <p class="text-muted mb-1" style="font-size:.88rem">
+                    رقم الفاتورة: <strong class="num" id="okInvoiceNumber"></strong>
+                </p>
+                <p class="mb-3" style="font-size:1.3rem;font-weight:800;color:#047857">
+                    <span class="num" id="okTotal"></span>
+                </p>
+                <a href="#" class="btn btn-brand w-100 mb-2" id="okPrintLink" target="_blank">
+                    <i class="bi bi-printer"></i> طباعة الفاتورة
+                </a>
+                <button type="button" class="btn btn-success w-100 mb-2" id="okNewInvoice">
+                    <i class="bi bi-plus-circle"></i> فاتورة جديدة
+                </button>
+                <button type="button" class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">
+                    إغلاق
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

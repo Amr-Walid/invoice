@@ -1,0 +1,94 @@
+@model PosSystem.Web.Controllers.UsersController.CreateUserVm
+@{
+    ViewData["Title"] = "مستخدم جديد";
+}
+
+<h1 class="page-title"><i class="bi bi-person-plus"></i> إضافة مستخدم جديد</h1>
+
+<div class="row">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-body">
+                <form asp-action="Create" method="post">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 px-3"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="FullName" class="form-label"></label>
+                        <input asp-for="FullName" class="form-control" placeholder="مثال: أحمد محمد" autofocus />
+                        <span asp-validation-for="FullName" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Email" class="form-label"></label>
+                        <input asp-for="Email" class="form-control num" dir="ltr" placeholder="agent2@pos.local" />
+                        <span asp-validation-for="Email" class="text-danger"></span>
+                        <small class="text-muted">يُستخدم البريد لتسجيل الدخول</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Password" class="form-label"></label>
+                        <input asp-for="Password" class="form-control" dir="ltr" type="text" />
+                        <span asp-validation-for="Password" class="text-danger"></span>
+                        <small class="text-muted">6 أحرف على الأقل، وتحتوي رقمًا واحدًا</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Role" class="form-label"></label>
+                        <select asp-for="Role" class="form-select" id="roleSelect">
+                            <option value="Agent">مندوب (Agent) — نقطة البيع وتقاريره فقط</option>
+                            <option value="WarehouseKeeper">أمين مخزن — المخزون والمشتريات والتحويلات</option>
+                            <option value="Admin">مدير (Admin) — كل صلاحيات النظام</option>
+                        </select>
+                        <span asp-validation-for="Role" class="text-danger"></span>
+                    </div>
+
+                    @* المخزن إلزامي لغير المدير: مندوب بلا مخزن لا يستطيع البيع إطلاقًا *@
+                    <div class="mb-4" id="warehouseWrap">
+                        <label asp-for="WarehouseId" class="form-label"></label>
+                        <select asp-for="WarehouseId" class="form-select"
+                                asp-items="(SelectList)ViewBag.Warehouses">
+                            <option value="">— اختر المخزن —</option>
+                        </select>
+                        <span asp-validation-for="WarehouseId" class="text-danger"></span>
+                        <small class="text-muted d-block" id="warehouseHint">
+                            المندوب يبيع من مخزنه فقط، وأمين المخزن يدير مخزنه فقط
+                        </small>
+                    </div>
+
+                    <button type="submit" class="btn btn-brand touch-btn px-4">
+                        <i class="bi bi-check-lg"></i> إنشاء المستخدم
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary touch-btn px-4">إلغاء</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+    <script>
+        // المدير يرى كل المخازن، فإظهار قائمة مخزن له يوحي بقيد غير موجود.
+        // تحسين عرض فقط — التحقق الحقيقي في المتحكم ولا يعتمد على المتصفح.
+        (function () {
+            const role = document.getElementById('roleSelect');
+            const wrap = document.getElementById('warehouseWrap');
+            const hint = document.getElementById('warehouseHint');
+            if (!role || !wrap) return;
+
+            function sync() {
+                const isAdmin = role.value === 'Admin';
+                wrap.style.display = isAdmin ? 'none' : '';
+                if (isAdmin) {
+                    wrap.querySelector('select').value = '';
+                } else if (hint) {
+                    hint.textContent = role.value === 'WarehouseKeeper'
+                        ? 'أمين المخزن يدير مخزنه فقط ويستلم مشترياته وتحويلاته'
+                        : 'المندوب يبيع من مخزنه فقط، وبلا مخزن لا يستطيع البيع';
+                }
+            }
+            role.addEventListener('change', sync);
+            sync();
+        })();
+    </script>
+}

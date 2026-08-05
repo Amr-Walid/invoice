@@ -1,0 +1,223 @@
+@model PosSystem.Web.Models.Entities.Return
+@{
+    ViewData["Title"] = "المرتجع " + Model.ReturnNumber;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2 no-print">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-arrow-counterclockwise"></i> المرتجع
+        <span class="num">@Model.ReturnNumber</span>
+    </h1>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" asp-action="List">
+            <i class="bi bi-list-ul"></i> سجل المرتجعات
+        </a>
+        <button type="button" class="btn btn-outline-primary" onclick="window.print()">
+            <i class="bi bi-printer"></i> طباعة
+        </button>
+    </div>
+</div>
+
+@* تأكيد صريح لِما حدث فعلًا — أهم رسالة في الشاشة *@
+<div class="alert @(Model.RestockedToInventory ? "alert-success" : "alert-warning") d-flex align-items-center gap-2">
+    <i class="bi @(Model.RestockedToInventory ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill")"></i>
+    <span>
+        @if (Model.RestockedToInventory)
+        {
+            <strong>تم تنفيذ المرتجع بنجاح.</strong>
+            <span>
+                أُعيدت <strong class="num">@Model.TotalQuantity</strong> قطعة إلى المخزون،
+                وأصبحت متاحة للبيع مرة أخرى.
+            </span>
+        }
+        else
+        {
+            <strong>تم تنفيذ المرتجع.</strong>
+            <span>الأصناف <strong>لم تُعَد</strong> إلى المخزون بناءً على اختيار المُنفِّذ.</span>
+        }
+    </span>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <!-- ============ بيانات المرتجع ============ -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span><i class="bi bi-info-circle"></i> بيانات المرتجع</span>
+                <span class="badge badge-soft-orange">
+                    @PosSystem.Web.Models.Entities.ReturnReasons.Label(Model.Reason)
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="text-muted" style="font-size:.82rem">رقم المرتجع</div>
+                        <div class="fw-bold num" style="font-size:1.1rem">@Model.ReturnNumber</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted" style="font-size:.82rem">التاريخ والوقت</div>
+                        <div class="fw-semibold num">@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted" style="font-size:.82rem">
+                            <i class="bi bi-receipt"></i> الفاتورة الأصلية
+                        </div>
+                        <div class="fw-semibold num">
+                            @if (Model.Invoice != null)
+                            {
+                                <a asp-controller="@(User.IsInRole(PosSystem.Web.Models.Entities.AppRoles.Admin) ? "Reports" : "AgentReports")"
+                                   asp-action="Details" asp-route-id="@Model.InvoiceId">@Model.InvoiceNumber</a>
+                            }
+                            else
+                            {
+                                @Model.InvoiceNumber
+                            }
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted" style="font-size:.82rem">
+                            <i class="bi bi-person-badge"></i> نفّذ المرتجع
+                        </div>
+                        <div class="fw-semibold">@Model.ProcessedByName</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted" style="font-size:.82rem">
+                            <i class="bi bi-person"></i> العميل
+                        </div>
+                        <div class="fw-semibold">
+                            @if (Model.CustomerId.HasValue)
+                            {
+                                <a asp-controller="Customers" asp-action="Details" asp-route-id="@Model.CustomerId">
+                                    @(string.IsNullOrWhiteSpace(Model.CustomerName) ? "عميل" : Model.CustomerName)
+                                </a>
+                            }
+                            else
+                            {
+                                @(string.IsNullOrWhiteSpace(Model.CustomerName) ? "غير محدد" : Model.CustomerName)
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.CustomerPhone))
+                            {
+                                <span class="text-muted num">— @Model.CustomerPhone</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted" style="font-size:.82rem">
+                            <i class="bi bi-box-arrow-in-down"></i> إعادة للمخزون
+                        </div>
+                        <div class="fw-semibold">
+                            @if (Model.RestockedToInventory)
+                            {
+                                <span class="badge badge-soft-green">نعم — أُعيدت الكميات</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-soft-gray">لا — لم تُعَد</span>
+                            }
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(Model.Notes))
+                    {
+                        <div class="col-12">
+                            <div class="text-muted" style="font-size:.82rem">ملاحظات</div>
+                            <div>@Model.Notes</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ الأصناف المُرجَعة ============ -->
+        <div class="table-wrap">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width:32px">#</th>
+                            <th>المنتج</th>
+                            <th>الباركود</th>
+                            <th>سعر الوحدة</th>
+                            <th class="text-center">الكمية المُرجَعة</th>
+                            <th>الإجمالي</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ var idx = 1; }
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td class="text-muted num">@(idx++)</td>
+                                <td class="fw-semibold">@item.ProductName</td>
+                                <td class="num barcode-text text-muted">@item.Barcode</td>
+                                <td class="num">@item.UnitPrice.ToString("N2")</td>
+                                <td class="text-center">
+                                    <strong class="num">@item.Quantity</strong>
+                                </td>
+                                <td class="num fw-bold">@item.LineTotal.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ حساب المُرَد ============ -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-calculator"></i> حساب المرتجع</div>
+            <div class="card-body">
+                <div class="totals-row">
+                    <span>عدد الأصناف</span>
+                    <strong class="num">@Model.Items.Count</strong>
+                </div>
+                <div class="totals-row">
+                    <span>عدد القطع</span>
+                    <strong class="num">@Model.TotalQuantity</strong>
+                </div>
+                <hr class="my-2">
+                <div class="totals-row">
+                    <span>الإجمالي قبل الخصم</span>
+                    <strong class="num">@Model.SubTotal.ToString("N2")</strong>
+                </div>
+
+                @if (Model.DiscountAmount > 0)
+                {
+                    <div class="totals-row discount">
+                        <span>
+                            الخصم المُستقطع
+                            <span class="badge badge-soft-red num">@Model.DiscountPercentage.ToString("0.##")%</span>
+                        </span>
+                        <strong class="num">- @Model.DiscountAmount.ToString("N2")</strong>
+                    </div>
+                    <div class="text-muted" style="font-size:.78rem">
+                        خُصمت بنفس نسبة خصم الفاتورة الأصلية، فيستلم العميل ما دفعه فعلًا.
+                    </div>
+                }
+                else
+                {
+                    <div class="totals-row text-muted" style="font-size:.88rem">
+                        <span>الخصم</span><span>لا يوجد</span>
+                    </div>
+                }
+
+                <div class="totals-row grand">
+                    <span>المبلغ المُرَد للعميل</span>
+                    <strong class="num text-danger">@Model.RefundAmount.ToString("N2")</strong>
+                </div>
+            </div>
+        </div>
+
+        @if (Model.Invoice != null && Model.Invoice.HasReturnableItems)
+        {
+            <a class="btn btn-outline-warning w-100 mt-3 touch-btn no-print"
+               asp-action="Create" asp-route-invoiceId="@Model.InvoiceId">
+                <i class="bi bi-arrow-counterclockwise"></i> إرجاع أصناف أخرى من نفس الفاتورة
+            </a>
+        }
+
+        <a class="btn btn-brand w-100 mt-3 touch-btn no-print" asp-action="Index">
+            <i class="bi bi-plus-circle"></i> مرتجع جديد
+        </a>
+    </div>
+</div>

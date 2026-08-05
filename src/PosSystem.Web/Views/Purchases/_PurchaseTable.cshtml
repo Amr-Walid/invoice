@@ -1,0 +1,83 @@
+@model List<PosSystem.Web.Models.ViewModels.PurchaseOrderRowVm>
+@using PosSystem.Web.Models.Entities
+@{
+    var emptyText = ViewData["EmptyText"] as string ?? "لا توجد أوامر شراء";
+}
+
+@* جدول مشترك بين «كل الأوامر» و«الأوامر المفتوحة» — منطق العرض واحد فلا
+   يُكتب مرتين ثم يتفرّق سلوكه بين الشاشتين *@
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width:160px">رقم الأمر</th>
+                    <th>المورد</th>
+                    <th>المخزن المستقبِل</th>
+                    <th style="width:90px">الأصناف</th>
+                    <th style="width:130px">مستلم / مطلوب</th>
+                    <th style="width:130px">الإجمالي</th>
+                    <th style="width:115px">التوريد المتوقع</th>
+                    <th style="width:170px">الحالة</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr><td colspan="8" class="empty-state"><i class="bi bi-cart-x"></i> @emptyText</td></tr>
+                }
+                else
+                {
+                    foreach (var o in Model)
+                    {
+                        <tr class="@(o.Status == PurchaseStatus.Cancelled ? "table-secondary"
+                                     : o.IsOverdue ? "table-danger" : "")">
+                            <td>
+                                <a asp-action="Details" asp-route-id="@o.Id"
+                                   class="num fw-bold text-decoration-none">@o.PurchaseNumber</a>
+                                <div class="small text-muted num">@o.CreatedAt.ToString("yyyy-MM-dd HH:mm")</div>
+                            </td>
+                            <td class="fw-bold">
+                                @o.SupplierName
+                                <div class="small text-muted">@o.CreatedByName</div>
+                            </td>
+                            <td>@o.WarehouseName</td>
+                            <td class="num">@o.ItemCount</td>
+                            <td class="num">
+                                <span class="@(o.TotalRemaining > 0 && o.Status != PurchaseStatus.Cancelled
+                                               ? "text-warning fw-bold" : "")">
+                                    @o.TotalReceived / @o.TotalOrdered
+                                </span>
+                                @if (o.TotalRemaining > 0 && o.Status != PurchaseStatus.Cancelled)
+                                {
+                                    <div class="small text-muted num">متبقٍ @o.TotalRemaining</div>
+                                }
+                            </td>
+                            <td class="num fw-bold">@o.Total.ToString("N2")</td>
+                            <td class="num small">
+                                @if (o.ExpectedDate.HasValue)
+                                {
+                                    @o.ExpectedDate.Value.ToString("yyyy-MM-dd")
+                                    @if (o.IsOverdue)
+                                    {
+                                        @* التأخّر يُبرز صراحةً: هو أول ما يُطلب متابعته مع المورد *@
+                                        <div class="text-danger fw-bold">
+                                            <i class="bi bi-exclamation-triangle"></i> متأخر
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge @o.StatusBadge">@o.StatusLabel</span>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

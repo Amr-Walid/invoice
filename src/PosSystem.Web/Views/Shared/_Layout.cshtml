@@ -1,0 +1,369 @@
+@using PosSystem.Web.Models.Entities
+@using PosSystem.Web.Services
+@{
+    var isAdmin = User.IsInRole(AppRoles.Admin);
+    var isKeeper = User.IsInRole(AppRoles.WarehouseKeeper);
+    var isAuth = User.Identity?.IsAuthenticated == true;
+
+    // شارة الدور: لم يبق النظام دورين فقط، فلا يصح افتراض أن كل من ليس
+    // مديرًا فهو مندوب — أمين المخزن كان سيظهر «مندوبًا» بلا معنى.
+    var roleLabel = isAdmin ? "مدير" : isKeeper ? "أمين مخزن" : "مندوب";
+    var roleBadgeClass = isAdmin ? "bg-warning text-dark"
+        : isKeeper ? "bg-success" : "bg-info text-dark";
+
+    // نعرض الاسم العربي الحقيقي لا البريد الإلكتروني، تماشيًا مع «سجل العمليات».
+    // مصدره مطالبة FullName التي يُصدرها AppClaimsPrincipalFactory.
+    var fullNameClaim = User.FindFirst(AppClaimsPrincipalFactory.FullNameClaim)?.Value;
+    var displayName = string.IsNullOrWhiteSpace(fullNameClaim)
+        ? User.Identity?.Name
+        : fullNameClaim;
+
+    // إبراز التبويب الحالي. مع قائمة جانبية طويلة، بدون هذا يفقد المستخدم
+    // إحساسه بموقعه في النظام.
+    //
+    // المقارنة بالمتحكم وحده لا تكفي: متحكم واحد يخدم عدة تبويبات
+    // (Purchases يخدم أوامر الشراء وبانتظار التوريد وأذون الاستلام وتقرير
+    // المشتريات)، فكان يُعلَّم أولها دائمًا أيًّا كانت الشاشة المفتوحة —
+    // وهو تعليم كاذب أسوأ من غيابه. المفتاح الآن «المتحكم/الإجراء».
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+
+    // للصفحة أن تُعلن انتسابها صراحةً عبر ViewData["Nav"]، وإعلانها يسبق
+    // كل استنتاج — مخرج جاهز لأي شاشة لا ينطبق عليها القياس التالي.
+    var navKey = ViewData["Nav"] as string;
+
+    if (string.IsNullOrWhiteSpace(navKey))
+    {
+        navKey = currentController + "/" + currentAction;
+
+        // نسبة خاصة تسبق القياس العام: هذه الشاشات لا تنتسب لـ Index.
+        // وهي تختلف بالدور لأن الشريط نفسه يختلف: المدير يفتح تفاصيل
+        // المرتجع من «سجل المرتجعات»، والمندوب ليس عنده سجل أصلًا.
+        var overrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            // إذن الاستلام المطبوع ابنُ سجل الأذون لا ابنُ أوامر الشراء
+            ["Purchases/Receipt"] = "Purchases/Receipts",
+            ["Purchases/Details"] = isAdmin ? "Purchases/Index" : "Purchases/Open",
+            ["Returns/Details"] = isAdmin ? "Returns/List" : "Returns/Index",
+            ["Transfers/Details"] = isAdmin ? "Transfers/All" : "Transfers/Index",
+            ["Transfers/Create"] = isAdmin ? "Transfers/All" : "Transfers/Index",
+        };
+
+        // القياس العام: شاشات الإنشاء/التعديل/التفاصيل وما شابهها تنتسب
+        // لقائمة متحكمها، وإلا لبقيت شاشات كاملة بلا أي تعليم في الشريط.
+        var subActions = new[]
+        {
+            "Create", "Edit", "Details", "Delete", "Stock", "ProductLedger",
+            "SetThreshold", "SetDefault", "Adjust", "ToggleActive",
+            "Confirm", "Cancel", "ExportCsv", "Receipt"
+        };
+
+        if (overrides.TryGetValue(navKey, out var mapped))
+        {
+            navKey = mapped;
+        }
+        else if (subActions.Contains(currentAction, StringComparer.OrdinalIgnoreCase))
+        {
+            navKey = currentController + "/Index";
+        }
+    }
+
+    Func<string, string, string> Act = (c, a) =>
+        string.Equals(navKey, c + "/" + a, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - نظام المبيعات</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+@if (isAuth)
+{
+    @*
+        شريط علوي مصغّر يظهر على الشاشات الصغيرة فقط (زر فتح القائمة + الهوية).
+        القائمة نفسها صارت جانبية على اليمين حتى تتمدد التبويبات رأسيًا بلا
+        تزاحم — إضافة تبويب جديد لم تعد تُضيّق الباقي.
+    *@
+    <header class="mobile-topbar d-lg-none">
+        <button class="mt-toggle" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar"
+                aria-controls="appSidebar" aria-label="فتح القائمة">
+            <i class="bi bi-list"></i>
+        </button>
+        <a class="mt-brand" asp-controller="Home" asp-action="Index">
+            <i class="bi bi-shop-window"></i>
+            <span>نظام المبيعات</span>
+        </a>
+    </header>
+
+    @* offcanvas-start = ينزلق من اليمين في نسخة Bootstrap RTL *@
+    <nav class="app-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="appSidebar"
+         aria-label="القائمة الرئيسية">
+        <div class="sidebar-head">
+            <a class="sidebar-brand" asp-controller="Home" asp-action="Index">
+                <i class="bi bi-shop-window"></i>
+                <span>نظام المبيعات</span>
+            </a>
+            <button type="button" class="btn-close btn-close-white d-lg-none"
+                    data-bs-dismiss="offcanvas" data-bs-target="#appSidebar" aria-label="إغلاق"></button>
+        </div>
+
+        <div class="sidebar-body">
+                <ul class="sidebar-nav">
+                    @if (isAdmin)
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Dashboard", "Index")" asp-controller="Dashboard" asp-action="Index">
+                                <i class="bi bi-speedometer2"></i> <span>لوحة التحكم</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link nav-pos @Act("Pos", "Index")" asp-controller="Pos" asp-action="Index">
+                                <i class="bi bi-upc-scan"></i> <span>نقطة البيع</span>
+                            </a>
+                        </li>
+
+                        <li class="nav-sep">المبيعات</li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Customers", "Index")" asp-controller="Customers" asp-action="Index">
+                                <i class="bi bi-people-fill"></i> <span>العملاء</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Returns", "Index")" asp-controller="Returns" asp-action="Index">
+                                <i class="bi bi-arrow-counterclockwise"></i> <span>مرتجع جديد</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Returns", "List")" asp-controller="Returns" asp-action="List">
+                                <i class="bi bi-list-ul"></i> <span>سجل المرتجعات</span>
+                            </a>
+                        </li>
+
+                        <li class="nav-sep">المخازن</li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Warehouses", "Index")" asp-controller="Warehouses" asp-action="Index">
+                                <i class="bi bi-building"></i> <span>المخازن</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Transfers", "All")" asp-controller="Transfers" asp-action="All">
+                                <i class="bi bi-arrow-left-right"></i> <span>التحويلات</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Transfers", "InTransit")" asp-controller="Transfers" asp-action="InTransit">
+                                <i class="bi bi-truck"></i> <span>في الطريق</span>
+                            </a>
+                        </li>
+
+                        @* المشتريات مجموعة مستقلة: مصدرها خارجي (مورد) بخلاف التحويل
+                           الذي يحرّك بضاعة موجودة بيننا — وخلطهما يضيّع الفرق *@
+                        <li class="nav-sep">المشتريات</li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Suppliers", "Index")" asp-controller="Suppliers" asp-action="Index">
+                                <i class="bi bi-person-badge"></i> <span>الموردون</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Purchases", "Index")" asp-controller="Purchases" asp-action="Index">
+                                <i class="bi bi-cart"></i> <span>أوامر الشراء</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Purchases", "Open")" asp-controller="Purchases" asp-action="Open">
+                                <i class="bi bi-hourglass-split"></i> <span>بانتظار التوريد</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Purchases", "Receipts")" asp-controller="Purchases" asp-action="Receipts">
+                                <i class="bi bi-box-arrow-in-down"></i> <span>أذون الاستلام</span>
+                            </a>
+                        </li>
+
+                        <li class="nav-sep">الكتالوج</li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Products", "Index")" asp-controller="Products" asp-action="Index">
+                                <i class="bi bi-box"></i> <span>المنتجات</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Brands", "Index")" asp-controller="Brands" asp-action="Index">
+                                <i class="bi bi-award"></i> <span>البراندات</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Categories", "Index")" asp-controller="Categories" asp-action="Index">
+                                <i class="bi bi-tags"></i> <span>التصنيفات</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Coupons", "Index")" asp-controller="Coupons" asp-action="Index">
+                                <i class="bi bi-ticket-perforated"></i> <span>أكواد الخصم</span>
+                            </a>
+                        </li>
+
+                        <li class="nav-sep">التقارير</li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Reports", "Index")" asp-controller="Reports" asp-action="Index">
+                                <i class="bi bi-receipt"></i> <span>تقرير المبيعات</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Reports", "TopProducts")" asp-controller="Reports" asp-action="TopProducts">
+                                <i class="bi bi-trophy"></i> <span>الأكثر مبيعًا</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Purchases", "Report")" asp-controller="Purchases" asp-action="Report">
+                                <i class="bi bi-graph-up-arrow"></i> <span>تقرير المشتريات</span>
+                            </a>
+                        </li>
+
+                        <li class="nav-sep">الإدارة</li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Users", "Index")" asp-controller="Users" asp-action="Index">
+                                <i class="bi bi-people"></i> <span>المستخدمون</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Audit", "Index")" asp-controller="Audit" asp-action="Index">
+                                <i class="bi bi-shield-check"></i> <span>سجل العمليات</span>
+                            </a>
+                        </li>
+                    }
+                    else if (isKeeper)
+                    {
+                        @* أمين المخزن لا يبيع ولا يرى العملاء — عمله البضاعة وحركتها *@
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Warehouses", "Index")" asp-controller="Warehouses" asp-action="Index">
+                                <i class="bi bi-building"></i> <span>مخازني</span>
+                            </a>
+                        </li>
+                        @* أمين المخزن هو من يقرر في الطلبات الواردة على مخزنه،
+                           لذا تأتي الواردة قبل طلباته هو في الترتيب. *@
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Transfers", "Incoming")" asp-controller="Transfers" asp-action="Incoming">
+                                <i class="bi bi-inbox"></i> <span>طلبات واردة</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Transfers", "Index")" asp-controller="Transfers" asp-action="Index">
+                                <i class="bi bi-arrow-left-right"></i> <span>طلباتي</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Transfers", "InTransit")" asp-controller="Transfers" asp-action="InTransit">
+                                <i class="bi bi-truck"></i> <span>في الطريق</span>
+                            </a>
+                        </li>
+
+                        @* أمين المخزن يستلم ولا يشترى: يرى ما هو بانتظار التوريد على
+                           مخزنه وأذونه، ولا يرى التكاليف ولا ينشئ أمرًا *@
+                        <li class="nav-sep">التوريد</li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Purchases", "Open")" asp-controller="Purchases" asp-action="Open">
+                                <i class="bi bi-hourglass-split"></i> <span>بانتظار التوريد</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Purchases", "Receipts")" asp-controller="Purchases" asp-action="Receipts">
+                                <i class="bi bi-box-arrow-in-down"></i> <span>أذون الاستلام</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Suppliers", "Index")" asp-controller="Suppliers" asp-action="Index">
+                                <i class="bi bi-person-badge"></i> <span>الموردون</span>
+                            </a>
+                        </li>
+                    }
+                    else
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Pos", "Index")" asp-controller="Pos" asp-action="Index">
+                                <i class="bi bi-house-door"></i> <span>الرئيسية</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("AgentReports", "Index")" asp-controller="AgentReports" asp-action="Index">
+                                <i class="bi bi-graph-up"></i> <span>تقاريري</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Returns", "Index")" asp-controller="Returns" asp-action="Index">
+                                <i class="bi bi-arrow-counterclockwise"></i> <span>مرتجع</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Customers", "Index")" asp-controller="Customers" asp-action="Index">
+                                <i class="bi bi-people"></i> <span>العملاء</span>
+                            </a>
+                        </li>
+                        @* المندوب أول من يكتشف نقص القطعة، فيطلبها مباشرة
+                           بلا انتطار مرور أمين المخزن. والاستلام من حقه أيضًا. *@
+                        <li class="nav-item">
+                            <a class="nav-link @Act("Transfers", "Index")" asp-controller="Transfers" asp-action="Index">
+                                <i class="bi bi-arrow-left-right"></i> <span>طلب قطع من مخزن</span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+        </div>
+
+        @* هوية المستخدم والخروج مثبّتان أسفل القائمة — بعيدًا عن التبويبات
+           حتى لا يُضغط «خروج» بالخطأ أثناء التنقّل السريع. *@
+        <div class="sidebar-foot">
+            <div class="user-chip">
+                <i class="bi bi-person-circle"></i>
+                <span class="uc-name">@displayName</span>
+                <span class="badge @roleBadgeClass">@roleLabel</span>
+            </div>
+            <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-sm btn-outline-light w-100">
+                    <i class="bi bi-box-arrow-right"></i> خروج
+                </button>
+            </form>
+        </div>
+    </nav>
+}
+
+<main class="@(isAuth ? "app-main px-3 px-lg-4 py-4" : "")">
+    @if (TempData["Success"] is string success)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill"></i> @success
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @* التحذير مستوى ثالث بين النجاح والخطأ: رفضٌ لقاعدة عمل لا خلل تقني —
+       «لا تستلم أكثر من المتبقّي»، «لا تحذف موردًا له أوامر». بغير عرضه
+       تُرفَض العملية والشاشة صامتة، فيظنّ المستخدم أن الزر لا يعمل. *@
+    @if (TempData["Warning"] is string warning)
+    {
+        <div class="alert alert-warning alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-exclamation-circle-fill"></i> @warning
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["Error"] is string error)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i> @error
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @RenderBody()
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

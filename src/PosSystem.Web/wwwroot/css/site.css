@@ -1,0 +1,886 @@
+/* ============================================================
+   نظام المبيعات — تصميم عربي RTL
+   ============================================================ */
+:root {
+    --brand: #1e3a8a;
+    --brand-dark: #172554;
+    --brand-light: #3b82f6;
+    --accent: #059669;
+    --accent-dark: #047857;
+    --danger: #dc2626;
+    --warn: #d97706;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --bg: #f1f5f9;
+    --radius: 14px;
+    --shadow: 0 2px 12px rgba(15, 23, 42, .08);
+    --shadow-lg: 0 12px 32px rgba(15, 23, 42, .16);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    margin: 0;
+    min-height: 100vh;
+}
+
+/* الأرقام تبقى لاتينية لوضوح الأسعار والباركود */
+.num, .table td.num, .money, .barcode-text {
+    font-variant-numeric: tabular-nums;
+    direction: ltr;
+    unicode-bidi: embed;
+}
+
+/* الأرقام داخل عنصر سطري تحتاج inline-block لضبط الاتجاه،
+   لكن يجب ألّا نكسر خلايا الجداول (td/th) فتنهار الصفوف رأسيًا. */
+span.num, strong.num, .money, .barcode-text {
+    display: inline-block;
+}
+
+td.num, th.num {
+    /* نحافظ على سلوك خلية الجدول مع محاذاة الأرقام */
+    display: table-cell;
+}
+
+/* ==================== القائمة الجانبية (يمين) ====================
+   نُقلت الملاحة من شريط أفقي إلى قائمة جانبية على اليمين، لأن التبويبات
+   في الشريط الأفقي كانت تتزاحم مع كل تبويب جديد. القائمة الرأسية تتمدد
+   بلا حدود ويمكن تقسيمها لمجموعات بعناوين. */
+:root { --sidebar-w: 250px; }
+
+.app-sidebar {
+    background: linear-gradient(170deg, var(--brand-dark), var(--brand));
+    color: #fff;
+    width: var(--sidebar-w);
+    display: flex;
+    flex-direction: column;
+}
+
+/* على الموبايل الدرج ينزلق بعرض جزئي فقط، فيبقى جزء من الصفحة ظاهرًا
+   ويفهم المستخدم أنه فوقها لا أنه انتقل لشاشة أخرى. */
+.app-sidebar.offcanvas-lg { --bs-offcanvas-width: 270px; }
+
+/* على الشاشات الكبيرة: عمود ثابت على اليمين لا يتحرك مع التمرير */
+@media (min-width: 992px) {
+    .app-sidebar {
+        position: fixed;
+        inset-block: 0;
+        /* inline-start = اليمين في RTL (اتجاه بداية القراءة) */
+        inset-inline-start: 0;
+        z-index: 1030;
+        box-shadow: var(--shadow-lg);
+    }
+    /* المحتوى يُزاح بعرض القائمة بدل أن تغطّيه */
+    .app-main {
+        margin-inline-start: var(--sidebar-w);
+        width: auto;
+    }
+}
+
+.sidebar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: 1.1rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, .14);
+    flex-shrink: 0;
+}
+.sidebar-brand {
+    color: #fff;
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 1.12rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+}
+.sidebar-brand:hover { color: #fff; }
+.sidebar-brand i { font-size: 1.4rem; }
+
+/* منطقة التبويبات هي وحدها القابلة للتمرير، فتبقى الهوية والخروج ظاهرين
+   دائمًا مهما طالت القائمة. */
+.sidebar-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: .6rem .55rem;
+}
+.sidebar-nav {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.sidebar-nav .nav-link {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    color: rgba(255, 255, 255, .86);
+    font-weight: 600;
+    font-size: .95rem;
+    text-decoration: none;
+    border-radius: 10px;
+    padding: .6rem .75rem;
+    margin-bottom: .15rem;
+    transition: background .15s, color .15s;
+}
+.sidebar-nav .nav-link i {
+    font-size: 1.05rem;
+    width: 1.35rem;
+    text-align: center;
+    flex-shrink: 0;
+}
+.sidebar-nav .nav-link:hover,
+.sidebar-nav .nav-link:focus-visible {
+    background: rgba(255, 255, 255, .13);
+    color: #fff;
+}
+/* التبويب الحالي: شريط جانبي + خلفية أوضح */
+.sidebar-nav .nav-link.active {
+    background: rgba(255, 255, 255, .2);
+    color: #fff;
+    /* الشريط المميّز على الحافة اليمنى (بداية السطر في RTL) */
+    box-shadow: inset -3px 0 0 #fff;
+}
+/* نقطة البيع تبقى مميّزة بالأخضر لأنها الإجراء الأكثر استخدامًا */
+.sidebar-nav .nav-pos {
+    background: var(--accent);
+    color: #fff;
+}
+.sidebar-nav .nav-pos:hover,
+.sidebar-nav .nav-pos.active { background: var(--accent-dark); color: #fff; }
+
+/* عناوين المجموعات — تُنظّم قائمة طويلة بلا حاجة لقوائم منسدلة */
+.nav-sep {
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    color: rgba(255, 255, 255, .5);
+    padding: .85rem .8rem .3rem;
+    text-transform: uppercase;
+}
+
+.sidebar-foot {
+    flex-shrink: 0;
+    padding: .8rem 1rem 1rem;
+    border-top: 1px solid rgba(255, 255, 255, .14);
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+}
+.user-chip {
+    color: #fff;
+    font-size: .85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    min-width: 0;
+}
+/* الاسم الطويل يُقتطع بدل أن يكسر تصميم القائمة */
+.user-chip .uc-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ==================== الشريط العلوي (شاشات صغيرة فقط) ==================== */
+.mobile-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1035;
+    background: linear-gradient(100deg, var(--brand-dark), var(--brand));
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .6rem .9rem;
+}
+.mt-toggle {
+    background: rgba(255, 255, 255, .14);
+    border: 1px solid rgba(255, 255, 255, .28);
+    color: #fff;
+    border-radius: 9px;
+    font-size: 1.35rem;
+    line-height: 1;
+    padding: .3rem .6rem;
+    cursor: pointer;
+}
+.mt-brand {
+    color: #fff;
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 1.05rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+}
+.mt-brand:hover { color: #fff; }
+
+/* ==================== الكروت ==================== */
+.card {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+.card-header {
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    font-weight: 700;
+    border-radius: var(--radius) var(--radius) 0 0 !important;
+    padding: .9rem 1.1rem;
+}
+.page-title {
+    font-weight: 800;
+    font-size: 1.5rem;
+    margin: 0 0 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+}
+.page-title i { color: var(--brand); }
+
+/* ==================== شاشة الدخول ==================== */
+.login-wrap {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand) 55%, var(--brand-light) 100%);
+}
+.login-card {
+    width: 100%;
+    max-width: 430px;
+    background: #fff;
+    border-radius: 20px;
+    padding: 2.4rem 2rem;
+    box-shadow: var(--shadow-lg);
+}
+.login-logo {
+    width: 76px; height: 76px;
+    margin: 0 auto 1rem;
+    border-radius: 20px;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--brand), var(--brand-light));
+    color: #fff;
+    font-size: 2.1rem;
+}
+.login-hint {
+    background: #f8fafc;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    padding: .75rem .9rem;
+    font-size: .82rem;
+    color: var(--muted);
+    line-height: 1.9;
+}
+
+/* ==================== المربعان الكبيران للمندوب ==================== */
+.agent-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.75rem;
+    margin-top: .5rem;
+}
+.tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .85rem;
+    min-height: 300px;
+    padding: 2.5rem 1.5rem;
+    border-radius: 22px;
+    border: none;
+    color: #fff;
+    text-decoration: none;
+    text-align: center;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: transform .18s ease, box-shadow .18s ease;
+}
+.tile:hover, .tile:focus {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-lg);
+    color: #fff;
+}
+.tile-invoice { background: linear-gradient(135deg, #047857, #10b981); }
+.tile-reports { background: linear-gradient(135deg, #1e3a8a, #3b82f6); }
+.tile i.tile-icon { font-size: 4.6rem; line-height: 1; }
+.tile .tile-title { font-size: 1.85rem; font-weight: 800; }
+.tile .tile-sub { font-size: .95rem; opacity: .9; font-weight: 500; }
+.tile .tile-key {
+    position: absolute;
+    top: 1rem; left: 1rem;
+    background: rgba(255,255,255,.22);
+    border-radius: 8px;
+    padding: .15rem .55rem;
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+/* ==================== إحصائيات ==================== */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+.stat {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.25rem;
+    box-shadow: var(--shadow);
+    border-inline-start: 5px solid var(--brand);
+}
+.stat.green { border-inline-start-color: var(--accent); }
+.stat.orange { border-inline-start-color: var(--warn); }
+.stat.red { border-inline-start-color: var(--danger); }
+.stat.purple { border-inline-start-color: #7c3aed; }
+.stat .stat-label {
+    color: var(--muted);
+    font-size: .84rem;
+    font-weight: 600;
+    display: flex; align-items: center; gap: .35rem;
+    margin-bottom: .3rem;
+}
+.stat .stat-value { font-size: 1.65rem; font-weight: 800; line-height: 1.2; }
+.stat .stat-extra { font-size: .78rem; color: var(--muted); }
+
+/* ==================== الجداول ==================== */
+.table-wrap {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+.table { margin: 0; }
+.table > thead {
+    background: #f8fafc;
+}
+.table > thead th {
+    font-weight: 700;
+    font-size: .85rem;
+    color: #334155;
+    border-bottom: 2px solid var(--line);
+    white-space: nowrap;
+    padding: .8rem .75rem;
+}
+.table > tbody td {
+    vertical-align: middle;
+    padding: .7rem .75rem;
+    font-size: .9rem;
+}
+.table-hover > tbody > tr:hover > * { background: #f8fbff; }
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--muted);
+}
+.empty-state i { font-size: 3rem; opacity: .35; display: block; margin-bottom: .75rem; }
+
+/* ==================== النماذج ==================== */
+.form-label { font-weight: 600; font-size: .9rem; margin-bottom: .35rem; }
+.form-control, .form-select {
+    border-radius: 10px;
+    border-color: #cbd5e1;
+    padding: .55rem .8rem;
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--brand-light);
+    box-shadow: 0 0 0 .2rem rgba(59, 130, 246, .18);
+}
+.btn { border-radius: 10px; font-weight: 600; }
+.btn-brand { background: var(--brand); color: #fff; }
+.btn-brand:hover { background: var(--brand-dark); color: #fff; }
+.text-danger.field-validation-error { font-size: .82rem; font-weight: 600; }
+
+/* ==================== نقطة البيع (POS) ==================== */
+.pos-modal .modal-content { border-radius: 16px; border: none; }
+.pos-modal .modal-header {
+    background: linear-gradient(100deg, var(--brand-dark), var(--brand));
+    color: #fff;
+    border-radius: 16px 16px 0 0;
+}
+.pos-modal .modal-header .btn-close { filter: invert(1) grayscale(1) brightness(2); }
+
+.scan-box {
+    background: #eff6ff;
+    border: 2px dashed var(--brand-light);
+    border-radius: 12px;
+    padding: 1rem;
+}
+#barcodeInput {
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-align: center;
+    direction: ltr;
+    padding: .7rem;
+    border: 2px solid var(--brand-light);
+    border-radius: 10px;
+}
+#barcodeInput:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 .25rem rgba(5, 150, 105, .2);
+}
+
+/* ============================================================
+   ماسح الكاميرا (Camera Barcode Scanner)
+   ============================================================ */
+.btn-camera {
+    background: #1e293b;
+    color: #fff;
+    border: none;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.btn-camera:hover, .btn-camera:focus { background: #0f172a; color: #fff; }
+.btn-camera.active { background: var(--accent); }
+
+.camera-panel {
+    margin-top: .85rem;
+    background: #0f172a;
+    border-radius: 12px;
+    padding: .6rem;
+}
+
+/* نُثبّت نسبة أبعاد المسرح حتى لا "تقفز" الواجهة عند بدء البث */
+.camera-stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    max-height: 46vh;
+    background: #000;
+    border-radius: 9px;
+    overflow: hidden;
+}
+.camera-stage video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* إطار التوجيه: يساعد الكاشير على محاذاة الباركود */
+.camera-reticle {
+    position: absolute;
+    inset: 18% 8%;
+    border: 2px solid rgba(255, 255, 255, .85);
+    border-radius: 10px;
+    box-shadow: 0 0 0 2000px rgba(0, 0, 0, .32);
+    pointer-events: none;
+}
+.camera-laser {
+    position: absolute;
+    left: 4%;
+    right: 4%;
+    top: 50%;
+    height: 2px;
+    background: #ef4444;
+    box-shadow: 0 0 8px 2px rgba(239, 68, 68, .85);
+    animation: laserSweep 1.8s ease-in-out infinite;
+}
+@keyframes laserSweep {
+    0%, 100% { top: 12%; }
+    50%      { top: 88%; }
+}
+
+.camera-bar {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    margin-top: .6rem;
+}
+.camera-bar .form-select { flex: 1; }
+
+.camera-status {
+    color: #e2e8f0;
+    font-size: .82rem;
+    min-height: 20px;
+    margin-top: .45rem;
+    text-align: center;
+}
+
+/* وميض أخضر عند نجاح القراءة — تأكيد بصري فوري للكاشير */
+.camera-stage.hit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(16, 185, 129, .45);
+    animation: hitFlash .45s ease-out;
+}
+@keyframes hitFlash {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+}
+
+/* على الشاشات الصغيرة نُعطي الكاميرا مساحة أكبر */
+@media (max-width: 575.98px) {
+    .camera-stage { aspect-ratio: 3 / 4; max-height: 54vh; }
+    .btn-camera span { display: none; }
+}
+
+.cart-table td, .cart-table th { font-size: .88rem; }
+.cart-table tr.flash-row { animation: flashRow .8s ease; }
+@keyframes flashRow {
+    0% { background: #d1fae5; }
+    100% { background: transparent; }
+}
+.qty-group { display: inline-flex; align-items: center; }
+.qty-group .btn {
+    width: 34px; height: 34px;
+    padding: 0;
+    display: grid; place-items: center;
+    font-weight: 800;
+}
+.qty-group input {
+    width: 60px;
+    text-align: center;
+    border-radius: 0;
+    border-inline: none;
+    font-weight: 700;
+    direction: ltr;
+}
+
+.totals-panel {
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1rem 1.15rem;
+}
+.totals-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: .4rem 0;
+    font-size: .95rem;
+}
+.totals-row.grand {
+    border-top: 2px solid var(--line);
+    margin-top: .45rem;
+    padding-top: .7rem;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--accent-dark);
+}
+.totals-row.discount { color: var(--danger); font-weight: 700; }
+
+.btn-checkout {
+    background: var(--accent);
+    color: #fff;
+    font-size: 1.15rem;
+    font-weight: 800;
+    padding: .8rem;
+    width: 100%;
+}
+.btn-checkout:hover:not(:disabled) { background: var(--accent-dark); color: #fff; }
+.btn-checkout:disabled { opacity: .6; }
+
+/* أزرار كبيرة ملائمة لشاشات اللمس */
+.touch-btn { min-height: 48px; font-size: 1rem; }
+
+.stock-badge {
+    font-size: .74rem;
+    font-weight: 700;
+    padding: .18rem .45rem;
+    border-radius: 6px;
+}
+.stock-ok { background: #d1fae5; color: #065f46; }
+.stock-low { background: #fef3c7; color: #92400e; }
+.stock-out { background: #fee2e2; color: #991b1b; }
+
+/* ==================== الفاتورة / الإيصال ==================== */
+.receipt {
+    width: 80mm;
+    max-width: 100%;
+    margin: 1.5rem auto;
+    background: #fff;
+    padding: 12px 14px;
+    font-family: 'Cairo', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #000;
+    box-shadow: var(--shadow);
+    border-radius: 8px;
+}
+.receipt h1 { font-size: 17px; text-align: center; margin: 0 0 2px; font-weight: 800; }
+.receipt .r-sub { text-align: center; font-size: 11px; margin-bottom: 8px; }
+.receipt .r-sep { border-top: 1px dashed #000; margin: 7px 0; }
+.receipt table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.receipt table th { border-bottom: 1px solid #000; padding: 3px 2px; text-align: right; }
+.receipt table td { padding: 3px 2px; }
+.receipt .r-line { display: flex; justify-content: space-between; }
+.receipt .r-total {
+    font-size: 15px;
+    font-weight: 800;
+    border-top: 2px solid #000;
+    padding-top: 5px;
+    margin-top: 4px;
+}
+.receipt .r-foot { text-align: center; font-size: 10px; margin-top: 9px; }
+
+/* ==================== الطباعة الحرارية 80mm ==================== */
+@media print {
+    @page { size: 80mm auto; margin: 3mm; }
+    body { background: #fff !important; }
+    /* القائمة الجانبية والشريط العلوي لا يُطبعان، وإلا اقتطعا الإيصال */
+    .app-sidebar, .mobile-topbar, .no-print, main > .alert, .btn { display: none !important; }
+    main { padding: 0 !important; }
+    /* إلغاء إزاحة المحتوى بعرض القائمة عند الطباعة */
+    .app-main { margin-inline-start: 0 !important; }
+    .receipt {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        border-radius: 0;
+        font-size: 11px;
+    }
+    .print-area, .print-area * { visibility: visible; }
+
+    /* ورقة ملصقات الباركود: تُطبع على A4 لا على 80mm.
+       قاعدة @page العامة أعلاه تُلغى من داخل صفحة الملصقات نفسها
+       (قسم Styles في Views/Products/Barcode.cshtml) لأن @page
+       لا يمكن ربطها بعنصر معيّن في CSS. */
+    .label-sheet { gap: 2mm !important; }
+    .label-sheet .bc-label {
+        border: 1px dashed #999 !important;   /* خط القص */
+        box-shadow: none !important;
+        break-inside: avoid;                  /* لا يُقطع ملصق بين صفحتين */
+        page-break-inside: avoid;
+    }
+    /* الأشرطة يجب أن تُطبع أسود صريح مهما كانت إعدادات «توفير الحبر» */
+    .bc-svg rect[fill="#000000"] { fill: #000 !important; }
+}
+
+/* ==================== ملصقات الباركود ==================== */
+.label-sheet {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4mm;
+    align-content: flex-start;
+}
+
+.bc-label {
+    /* مقاس عملي شائع لملصقات الرفوف؛ يتسع لباركود 13 رقمًا مع الهامش الهادئ */
+    width: 52mm;
+    padding: 2mm 1.5mm;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    text-align: center;
+    box-shadow: var(--shadow);
+}
+
+.bc-label .bc-name {
+    font-size: 8.6pt;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-bottom: 1mm;
+    /* اسم طويل لا يجوز أن يُزحزح الباركود أو يكسر تخطيط الملصق */
+    max-height: 2.6em;
+    overflow: hidden;
+}
+
+.bc-label .bc-svg { line-height: 0; }
+.bc-label .bc-svg svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+
+.bc-label .bc-price {
+    font-size: 11pt;
+    font-weight: 800;
+    margin-top: .8mm;
+    direction: rtl;
+}
+
+.bc-label .bc-brand {
+    font-size: 7pt;
+    color: #64748b;
+    margin-top: .3mm;
+}
+
+/* ==================== متنوع ==================== */
+.badge-soft-green { background: #d1fae5; color: #065f46; font-weight: 700; }
+.badge-soft-red { background: #fee2e2; color: #991b1b; font-weight: 700; }
+.badge-soft-blue { background: #dbeafe; color: #1e40af; font-weight: 700; }
+.badge-soft-gray { background: #f1f5f9; color: #475569; font-weight: 700; }
+.badge-soft-orange { background: #ffedd5; color: #9a3412; font-weight: 700; }
+.badge-soft-purple { background: #ede9fe; color: #5b21b6; font-weight: 700; }
+
+.filter-bar {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.25rem;
+}
+
+/* ==================== الرسم البياني الخطّي (SVG بلا مكتبات) ==================== */
+.line-chart {
+    width: 100%;
+    /* ارتفاع ثابت لأن preserveAspectRatio="none" يمدّ الرسم على الحاوية،
+       فلو تُرك الارتفاع حرًّا تشوّهت النِّسَب بين الشاشات. */
+    height: 240px;
+}
+.line-chart svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.lc-grid {
+    stroke: var(--line);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+}
+.lc-area { stroke: none; }
+.lc-line {
+    fill: none;
+    stroke: var(--brand);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    /* المسار يُرسم بسماكة موحّدة مهما تمدّد الـ viewBox أفقيًا */
+    vector-effect: non-scaling-stroke;
+}
+.lc-dot {
+    fill: #fff;
+    stroke: var(--brand);
+    stroke-width: 2.5;
+    vector-effect: non-scaling-stroke;
+    transition: r .12s ease;
+    cursor: pointer;
+}
+.lc-dot:hover { r: 6; }
+
+/* تسميات المحاور: أرقام لاتينية باتجاه LTR داخل صفحة RTL */
+.lc-xtick, .lc-ytick {
+    fill: var(--muted);
+    font-size: 11px;
+    font-family: inherit;
+    direction: ltr;
+    unicode-bidi: embed;
+}
+.lc-ytick { font-size: 10px; }
+
+@media (max-width: 576px) {
+    .line-chart { height: 200px; }
+    .lc-xtick { font-size: 13px; }
+    .lc-ytick { font-size: 12px; }
+}
+
+@media (max-width: 576px) {
+    .tile { min-height: 220px; padding: 1.75rem 1rem; }
+    .tile i.tile-icon { font-size: 3.4rem; }
+    .tile .tile-title { font-size: 1.45rem; }
+    .page-title { font-size: 1.25rem; }
+}
+
+/* ==================== المرتجعات والعملاء ==================== */
+
+/* المربع الثالث: مرتجع. تدرّج برتقالي يميّزه عن الأخضر (بيع) والأزرق (تقارير)،
+   فيُفرَّق بينها باللون قبل قراءة النص — مهم في شاشة لمس سريعة. */
+.tile-returns { background: linear-gradient(135deg, #b45309, #f59e0b); }
+
+/* عنوان قسم داخل الصفحة — أصغر من page-title وأوضح من عنوان البطاقة */
+.section-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text, #0f172a);
+    margin: 1.5rem 0 .75rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+.section-title i { color: var(--brand, #2563eb); }
+
+/* خطوات عملية المرتجع — تُظهر للمستخدم أين هو وأن التأكيد لم يحدث بعد */
+.steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+}
+.steps .step {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .4rem .85rem;
+    border-radius: 999px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: .85rem;
+    font-weight: 600;
+}
+.steps .step-num {
+    display: grid;
+    place-items: center;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #cbd5e1;
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 800;
+}
+.steps .step.active { background: #fef3c7; color: #92400e; }
+.steps .step.active .step-num { background: #f59e0b; }
+.steps .step.done { background: #d1fae5; color: #065f46; }
+.steps .step.done .step-num { background: #10b981; }
+
+/* السطر المختار للإرجاع يُبرَز بلون خفيف — تأكيد بصري فوري لِما سيُرجَع */
+tr.row-selected { background: #fff7ed !important; }
+tr.row-selected td { font-weight: 600; }
+
+/* مفتاح إعادة المخزون — مُبرَز لأنه القرار الأهم في الشاشة */
+.restock-switch {
+    background: #f0fdf4;
+    border-color: #86efac !important;
+}
+.restock-switch .form-check-input { cursor: pointer; }
+.restock-switch .form-check-input:checked {
+    background-color: #16a34a;
+    border-color: #16a34a;
+}
+
+/* إيصال المرتجع المطبوع — نفس مقاس الطابعة الحرارية 80mm */
+@media print {
+    .no-print { display: none !important; }
+}
+
+/* ==================== إكمال تلقائي لبيانات العميل ==================== */
+.customer-suggestions {
+    position: absolute;
+    inset-inline: 0;
+    top: calc(100% + 4px);
+    z-index: 1080;              /* أعلى من محتوى الـ modal */
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, .16);
+    max-height: 240px;
+    overflow-y: auto;
+}
+.customer-suggestion {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    width: 100%;
+    padding: .55rem .75rem;
+    background: none;
+    border: none;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: start;
+    font-size: .88rem;
+    cursor: pointer;
+}
+.customer-suggestion:last-child { border-bottom: none; }
+.customer-suggestion:hover, .customer-suggestion:focus { background: #eff6ff; }
+.customer-suggestion .cs-name { font-weight: 700; flex: 1 1 auto; }
+.customer-suggestion .cs-phone { color: #64748b; direction: ltr; }

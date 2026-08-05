@@ -1,0 +1,204 @@
+@model List<PosSystem.Web.Services.WarehouseStockRow>
+@using PosSystem.Web.Models.Entities
+@{
+    var w = (Warehouse)ViewBag.Warehouse;
+    ViewData["Title"] = $"مخزون {w.Name}";
+    var search = ViewBag.Search as string;
+    var lowOnly = (bool)(ViewBag.LowStockOnly ?? false);
+    var lowCount = (int)(ViewBag.LowStockCount ?? 0);
+    var wUsers = ViewBag.Users as List<ApplicationUser> ?? new List<ApplicationUser>();
+    var totalPieces = Model.Sum(r => r.Quantity);
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-box-seam"></i> مخزون «@w.Name»
+        <span class="badge badge-soft-gray num">@w.Code</span>
+    </h1>
+    <a class="btn btn-outline-secondary touch-btn" asp-action="Index">
+        <i class="bi bi-arrow-right"></i> كل المخازن
+    </a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">عدد الأصناف</div>
+            <div class="fs-4 fw-bold num">@Model.Count</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">إجمالي القطع</div>
+            <div class="fs-4 fw-bold num">@totalPieces</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">أصناف تحت حد التنبيه</div>
+            <div class="fs-4 fw-bold num @(lowCount > 0 ? "text-danger" : "")">@lowCount</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">المستخدمون المرتبطون</div>
+            <div class="fs-4 fw-bold num">@wUsers.Count</div>
+            @if (wUsers.Any())
+            {
+                <div class="small text-muted">@string.Join("، ", wUsers.Take(3).Select(u => u.FullName))</div>
+            }
+        </div></div>
+    </div>
+</div>
+
+<form method="get" class="row g-2 align-items-end mb-3">
+    <input type="hidden" name="id" value="@w.Id" />
+    <div class="col-md-5">
+        <label class="form-label">بحث بالاسم أو الباركود</label>
+        <input name="search" value="@search" class="form-control" placeholder="اكتب اسم المنتج أو امسح باركود" />
+    </div>
+    <div class="col-md-4">
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="lowStockOnly" value="true"
+                   id="lowOnly" @(lowOnly ? "checked" : "") />
+            <label class="form-check-label" for="lowOnly">الأصناف الناقصة فقط</label>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <button type="submit" class="btn btn-brand touch-btn w-100">
+            <i class="bi bi-search"></i> بحث
+        </button>
+    </div>
+</form>
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>المنتج</th>
+                    <th style="width:150px">الباركود</th>
+                    <th style="width:120px">البراند</th>
+                    <th style="width:120px">التصنيف</th>
+                    <th style="width:110px">الكمية هنا</th>
+                    <th style="width:120px">في مخازن أخرى</th>
+                    <th style="width:110px">حد التنبيه</th>
+                    <th style="width:120px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="8" class="empty-state">
+                            <i class="bi bi-box"></i>
+                            @(string.IsNullOrWhiteSpace(search) && !lowOnly
+                                ? "لا توجد أصناف في هذا المخزن بعد"
+                                : "لا توجد نتائج مطابقة")
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var r in Model)
+                    {
+                        <tr>
+                            <td class="fw-bold">@r.ProductName</td>
+                            <td class="num text-muted" dir="ltr">@r.Barcode</td>
+                            <td class="text-muted">@r.BrandName</td>
+                            <td class="text-muted">@r.CategoryName</td>
+                            <td>
+                                <span class="stock-badge num @(r.Quantity == 0 ? "stock-out" : r.IsLowStock ? "stock-low" : "stock-ok")">
+                                    @r.Quantity
+                                </span>
+                            </td>
+                            <td>
+                                @if (r.QuantityElsewhere > 0)
+                                {
+                                    @* المعلومة التي تجعل طلب التحويل قرارًا لا تخمينًا *@
+                                    <span class="badge badge-soft-blue num">@r.QuantityElsewhere</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td class="num text-muted">
+                                @r.Threshold
+                                @if (r.CustomThreshold is not null)
+                                {
+                                    <span class="badge badge-soft-gray">خاص</span>
+                                }
+                            </td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-secondary"
+                                   asp-action="ProductLedger" asp-route-id="@w.Id" asp-route-productId="@r.ProductId">
+                                    <i class="bi bi-clock-history"></i> كارت الصنف
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-1"
+                                        data-bs-toggle="modal" data-bs-target="#adjModal-@r.ProductId">
+                                    <i class="bi bi-sliders"></i> تسوية
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@* ============ نوافذ التسوية اليدوية ============
+   هذا المسار هو الوحيد لتعديل المخزون يدويًا بعد تعدد المخازن،
+   لأن الرقم في شاشة المنتجات مجموع كل المخازن ولا يقول أي مخزن تغير. *@
+@foreach (var r in Model)
+{
+    <div class="modal fade" id="adjModal-@r.ProductId" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius:14px">
+                <form asp-action="Adjust" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@w.Id" />
+                    <input type="hidden" name="productId" value="@r.ProductId" />
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-sliders"></i> تسوية رصيد</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-2">
+                            <div class="fw-bold">@r.ProductName</div>
+                            <div class="small text-muted">
+                                الرصيد الحالي في «@w.Name»:
+                                <span class="num fw-bold">@r.Quantity</span>
+                            </div>
+                        </div>
+
+                        <label class="form-label">التغيير</label>
+                        <div class="input-group">
+                            <input type="number" name="change" class="form-control num" required
+                                   placeholder="موجب = إيداع، سالب = سحب" />
+                            <span class="input-group-text">قطعة</span>
+                        </div>
+                        <small class="text-muted">
+                            مثال: <span class="num">5</span> للإيداع، أو <span class="num">-3</span> للسحب.
+                            لا يُقبل سحب أكبر من الرصيد.
+                        </small>
+
+                        <label class="form-label mt-3">سبب التسوية <span class="text-danger">*</span></label>
+                        <input type="text" name="note" class="form-control" required maxlength="300"
+                               placeholder="مثال: جرد فعلي، تالف، فرق عدّ" />
+                        <small class="text-muted">
+                            مطلوب — تسوية بلا سبب تُنتج فرقًا لا يمكن تفسيره لاحقًا
+                        </small>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-brand">
+                            <i class="bi bi-check-lg"></i> تنفيذ التسوية
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}

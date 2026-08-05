@@ -1,0 +1,129 @@
+@model List<PosSystem.Web.Models.Entities.StockMovement>
+@using PosSystem.Web.Models.Entities
+@{
+    var w = (Warehouse)ViewBag.Warehouse;
+    var p = (Product)ViewBag.Product;
+    var qty = (int)(ViewBag.Quantity ?? 0);
+    var across = ViewBag.AcrossWarehouses as List<ProductStock> ?? new List<ProductStock>();
+    ViewData["Title"] = $"كارت الصنف — {p.Name}";
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-clock-history"></i> كارت الصنف
+    </h1>
+    <a class="btn btn-outline-secondary touch-btn" asp-action="Stock" asp-route-id="@w.Id">
+        <i class="bi bi-arrow-right"></i> مخزون «@w.Name»
+    </a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-8">
+        <div class="card"><div class="card-body">
+            <div class="fs-5 fw-bold">@p.Name</div>
+            <div class="text-muted num" dir="ltr">@p.Barcode</div>
+            <div class="mt-2">
+                <span class="badge badge-soft-gray">@(p.Brand?.Name ?? "—")</span>
+                <span class="badge badge-soft-gray">@(p.Category?.Name ?? "—")</span>
+                <span class="badge badge-soft-blue num">@p.Price.ToString("0.00") ج.م</span>
+            </div>
+        </div></div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card"><div class="card-body">
+            <div class="text-muted small">الرصيد في «@w.Name»</div>
+            <div class="fs-3 fw-bold num">@qty</div>
+        </div></div>
+    </div>
+</div>
+
+@* الرصيد في كل المخازن: هذا ما يُحوِّل «مش موجود» إلى «موجود في الفرع الفلاني» *@
+<div class="card mb-3">
+    <div class="card-body">
+        <h2 class="h6 fw-bold mb-3">
+            <i class="bi bi-diagram-3"></i> الرصيد في كل المخازن
+            <span class="badge badge-soft-green num">الإجمالي @across.Sum(s => s.Quantity)</span>
+        </h2>
+
+        @if (!across.Any())
+        {
+            <div class="text-muted">لا يوجد رصيد لهذا الصنف في أي مخزن</div>
+        }
+        else
+        {
+            <div class="d-flex flex-wrap gap-2">
+                @foreach (var s in across)
+                {
+                    var isCurrent = s.WarehouseId == w.Id;
+                    <span class="badge @(isCurrent ? "badge-soft-blue" : "badge-soft-gray") p-2">
+                        @(s.Warehouse?.Name ?? "—"):
+                        <span class="num fw-bold">@s.Quantity</span>
+                        @if (isCurrent) { <text>(هنا)</text> }
+                    </span>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width:160px">التاريخ والوقت</th>
+                    <th style="width:130px">نوع الحركة</th>
+                    <th style="width:100px">التغيير</th>
+                    <th style="width:110px">الرصيد بعدها</th>
+                    <th>المرجع / ملاحظات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="5" class="empty-state">
+                            <i class="bi bi-clock-history"></i> لا توجد حركات على هذا الصنف في هذا المخزن
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var m in Model)
+                    {
+                        <tr>
+                            <td class="num text-muted">@m.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>
+                                <span class="badge @(m.Change >= 0 ? "badge-soft-green" : "badge-soft-orange")">
+                                    @StockMovementReasonLabels.Of(m.Reason)
+                                </span>
+                            </td>
+                            <td class="num fw-bold @(m.Change >= 0 ? "text-success" : "text-danger")">
+                                @(m.Change > 0 ? "+" : "")@m.Change
+                            </td>
+                            <td class="num">@m.QuantityAfter</td>
+                            <td class="small text-muted">
+                                @{
+                                    var refs = new List<string>();
+                                    if (m.ReferenceInvoiceId is not null) refs.Add($"فاتورة #{m.ReferenceInvoiceId}");
+                                    if (m.ReferenceReturnId is not null) refs.Add($"مرتجع #{m.ReferenceReturnId}");
+                                    if (m.ReferencePurchaseReceiptId is not null) refs.Add($"استلام #{m.ReferencePurchaseReceiptId}");
+                                    if (m.ReferenceTransferId is not null) refs.Add($"تحويل #{m.ReferenceTransferId}");
+                                    if (m.ReferenceAdjustmentId is not null) refs.Add($"تسوية #{m.ReferenceAdjustmentId}");
+                                }
+                                @if (refs.Any()) { <div>@string.Join(" · ", refs)</div> }
+                                @if (!string.IsNullOrWhiteSpace(m.Note)) { <div>@m.Note</div> }
+                                @if (!refs.Any() && string.IsNullOrWhiteSpace(m.Note)) { <span>—</span> }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="alert alert-info mt-3 py-2 px-3 small">
+    <i class="bi bi-info-circle"></i>
+    تُعرض آخر 200 حركة على هذا الصنف في هذا المخزن، الأحدث أولًا.
+</div>

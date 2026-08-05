@@ -1,0 +1,149 @@
+@model PosSystem.Web.Models.ViewModels.ReturnListVm
+@{
+    ViewData["Title"] = "سجل المرتجعات";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-list-ul"></i> سجل المرتجعات
+        <span class="badge badge-soft-orange num">@Model.TotalCount</span>
+    </h1>
+    <a class="btn btn-warning fw-bold" asp-action="Index">
+        <i class="bi bi-arrow-counterclockwise"></i> مرتجع جديد
+    </a>
+</div>
+
+<div class="stat-grid mb-4">
+    <div class="stat orange">
+        <div class="stat-label"><i class="bi bi-arrow-counterclockwise"></i> عدد المرتجعات</div>
+        <div class="stat-value num">@Model.TotalCount</div>
+    </div>
+    <div class="stat purple">
+        <div class="stat-label"><i class="bi bi-box-seam"></i> القطع المُرجَعة</div>
+        <div class="stat-value num">@Model.TotalItemsReturned</div>
+    </div>
+    <div class="stat red">
+        <div class="stat-label"><i class="bi bi-cash-coin"></i> إجمالي المُرَد</div>
+        <div class="stat-value num">@Model.TotalRefunded.ToString("N2")</div>
+    </div>
+</div>
+
+<form class="filter-bar" method="get" asp-action="List">
+    <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-4">
+            <label class="form-label">بحث</label>
+            <input type="text" name="q" class="form-control" value="@Model.Query"
+                   placeholder="رقم مرتجع / فاتورة / عميل / منفّذ" />
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label">من تاريخ</label>
+            <input type="date" name="from" class="form-control num"
+                   value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+        </div>
+        <div class="col-6 col-md-3">
+            <label class="form-label">إلى تاريخ</label>
+            <input type="date" name="to" class="form-control num"
+                   value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+        </div>
+        <div class="col-12 col-md-2">
+            <button type="submit" class="btn btn-brand w-100">
+                <i class="bi bi-funnel"></i> تطبيق
+            </button>
+        </div>
+    </div>
+</form>
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>رقم المرتجع</th>
+                    <th>الفاتورة الأصلية</th>
+                    <th>التاريخ والوقت</th>
+                    <th>العميل</th>
+                    <th>نفّذها</th>
+                    <th>السبب</th>
+                    <th class="text-center">القطع</th>
+                    <th>المُرَد</th>
+                    <th class="text-center">المخزون</th>
+                    <th style="width:110px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Returns.Any())
+                {
+                    <tr>
+                        <td colspan="10" class="empty-state">
+                            <i class="bi bi-inbox"></i> لا توجد مرتجعات مُسجَّلة في هذا النطاق
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var ret in Model.Returns)
+                    {
+                        <tr>
+                            <td><strong class="num">@ret.ReturnNumber</strong></td>
+                            <td class="num">@ret.InvoiceNumber</td>
+                            <td class="num">@ret.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>
+                                @(string.IsNullOrWhiteSpace(ret.CustomerName) ? "—" : ret.CustomerName)
+                                @if (!string.IsNullOrWhiteSpace(ret.CustomerPhone))
+                                {
+                                    <div class="text-muted num" style="font-size:.8rem">@ret.CustomerPhone</div>
+                                }
+                            </td>
+                            <td>@ret.ProcessedByName</td>
+                            <td>
+                                <span class="badge badge-soft-gray">
+                                    @PosSystem.Web.Models.Entities.ReturnReasons.Label(ret.Reason)
+                                </span>
+                            </td>
+                            <td class="text-center num">@ret.TotalQuantity</td>
+                            <td><strong class="num text-danger">@ret.RefundAmount.ToString("N2")</strong></td>
+                            <td class="text-center">
+                                @if (ret.RestockedToInventory)
+                                {
+                                    <span class="badge badge-soft-green" title="أُعيدت الأصناف للمخزون">
+                                        <i class="bi bi-check-lg"></i> أُعيد
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-soft-gray" title="لم تُعَد للمخزون (تالف)">
+                                        <i class="bi bi-x-lg"></i> لا
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-primary"
+                                   asp-action="Details" asp-route-id="@ret.Id">
+                                    <i class="bi bi-eye"></i> تفاصيل
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (Model.TotalPages > 1)
+{
+    <nav class="mt-3">
+        <ul class="pagination justify-content-center">
+            @for (var p = 1; p <= Model.TotalPages; p++)
+            {
+                <li class="page-item @(p == Model.Page ? "active" : "")">
+                    <a class="page-link num" asp-action="List"
+                       asp-route-q="@Model.Query"
+                       asp-route-from="@(Model.From?.ToString("yyyy-MM-dd"))"
+                       asp-route-to="@(Model.To?.ToString("yyyy-MM-dd"))"
+                       asp-route-page="@p">@p</a>
+                </li>
+            }
+        </ul>
+    </nav>
+}

@@ -1,0 +1,47 @@
+@model PosSystem.Web.Models.Entities.Category
+@{
+    ViewData["Title"] = "تعديل التصنيف";
+}
+
+<h1 class="page-title"><i class="bi bi-pencil-square"></i> تعديل التصنيف</h1>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <form asp-action="Edit" asp-route-id="@Model.Id" method="post">
+                    <input type="hidden" asp-for="Id" />
+                    <input type="hidden" asp-for="CreatedAt" />
+
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 px-3"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="BrandId" class="form-label"></label>
+                        <select asp-for="BrandId" class="form-select" asp-items="ViewBag.Brands">
+                            <option value="">— اختر البراند —</option>
+                        </select>
+                        <span asp-validation-for="BrandId" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label"></label>
+                        <input asp-for="Name" class="form-control" />
+                        <span asp-validation-for="Name" class="text-danger"></span>
+                    </div>
+
+                    <div class="form-check mb-4">
+                        <input asp-for="IsActive" class="form-check-input" />
+                        <label asp-for="IsActive" class="form-check-label">مفعل</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-brand touch-btn px-4">
+                        <i class="bi bi-check-lg"></i> حفظ التعديلات
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary touch-btn px-4">إلغاء</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts { @await Html.PartialAsync("_ValidationScriptsPartial") }

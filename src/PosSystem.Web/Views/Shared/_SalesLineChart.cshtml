@@ -1,0 +1,125 @@
+@*
+    رسم بياني خطّي لمبيعات الأيام — SVG متجهي بلا أي مكتبة خارجية.
+
+    لماذا SVG يدويًا وليس Chart.js؟
+    نفس مبدأ مولّد الباركود في المشروع: صفر تبعيات، ويعمل بلا JavaScript
+    (مهم لو المتصفح قديم أو الشبكة بطيئة في المتجر)، ويُطبع بدقة الطابعة.
+
+    الإحداثيات: SVG لا يعرف RTL، لذا نرسم من اليسار لليمين ثم نعكس ترتيب
+    النقاط في C# حتى يظهر أقدم يوم على اليمين وأحدث يوم على اليسار — وهو
+    الاتجاه الطبيعي للقارئ العربي.
+*@
+@model List<PosSystem.Web.Models.ViewModels.DailySalesPointVm>
+
+@{
+    // النقاط بترتيب العرض: الأحدث على اليمين بصريًا يعني أول عنصر في SVG
+    // يكون الأقدم؛ نعكس القائمة لأن SVG يرسم يسار←يمين.
+    var pts = Model.AsEnumerable().Reverse().ToList();
+
+    // أبعاد منطقية ثابتة (viewBox) — الرسم يتمدد مع حجم الحاوية تلقائيًا
+    const int W = 720;
+    const int H = 240;
+    const int padT = 18;
+    const int padB = 34;
+    const int padX = 46;
+
+    var plotW = W - (padX * 2);
+    var plotH = H - padT - padB;
+
+    var maxVal = pts.Count > 0 ? pts.Max(p => p.NetSales) : 0m;
+    // سقف الرسم أعلى من أكبر قيمة بـ 15% حتى لا تلتصق القمة بالحد الأعلى
+    var top = maxVal <= 0 ? 1m : maxVal * 1.15m;
+
+    // دالة تحويل قيمة إلى إحداثي Y (مقلوب لأن Y ينمو للأسفل في SVG)
+    Func<decimal, double> yOf = v => padT + (double)(1 - (v / top)) * plotH;
+
+    // إحداثي X لكل نقطة. نقطة واحدة ⇒ نضعها في المنتصف بدلًا من القسمة على صفر.
+    Func<int, double> xOf = i => pts.Count <= 1
+        ? padX + plotW / 2.0
+        : padX + (plotW * i / (double)(pts.Count - 1));
+
+    var coords = pts.Select((p, i) => new
+    {
+        Point = p,
+        X = xOf(i),
+        Y = yOf(p.NetSales)
+    }).ToList();
+
+    Func<double, string> N = Num;
+
+    // مسار الخط
+    var linePath = string.Join(" ", coords.Select((c, i) =>
+        $"{(i == 0 ? "M" : "L")}{N(c.X)},{N(c.Y)}"));
+
+    // مسار التظليل أسفل الخط (يُغلق على خط القاعدة)
+    var baseY = padT + plotH;
+    var areaPath = coords.Count > 0
+        ? $"{linePath} L{N(coords[^1].X)},{N(baseY)} L{N(coords[0].X)},{N(baseY)} Z"
+        : "";
+
+    // خطوط شبكية أفقية (4 مستويات) مع قيمها
+    var gridLines = Enumerable.Range(0, 5)
+        .Select(k => new
+        {
+            Y = padT + (plotH * k / 4.0),
+            Value = top * (decimal)(4 - k) / 4m
+        }).ToList();
+
+    var uid = "lc" + Guid.NewGuid().ToString("N")[..8];
+}
+
+<div class="line-chart" data-chart>
+    <svg viewBox="0 0 @W @H" role="img" preserveAspectRatio="none"
+         aria-label="رسم بياني خطّي لمبيعات آخر @pts.Count أيام">
+        <defs>
+            <linearGradient id="@(uid)-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--brand)" stop-opacity=".28" />
+                <stop offset="100%" stop-color="var(--brand)" stop-opacity="0" />
+            </linearGradient>
+        </defs>
+
+        @* الشبكة وقيم المحور الرأسي.
+           ملاحظة: Razor يحتجز <text> كوسم تحكّم خاص به ولا يسمح له بسمات،
+           لذا نُخرج عناصر <text> الخاصة بـ SVG عبر Html.Raw مع ترميز المحتوى. *@
+        @foreach (var g in gridLines)
+        {
+            <line class="lc-grid" x1="@N(padX)" y1="@N(g.Y)" x2="@N(padX + plotW)" y2="@N(g.Y)" />
+            @Html.Raw($"<text class=\"lc-ytick\" x=\"{N(padX - 8)}\" y=\"{N(g.Y + 3.5)}\" text-anchor=\"end\">{Enc(FormatShort(g.Value))}</text>")
+        }
+
+        @if (areaPath.Length > 0)
+        {
+            <path class="lc-area" d="@areaPath" fill="url(#@(uid)-fill)" />
+            <path class="lc-line" d="@linePath" />
+        }
+
+        @* النقاط + تسميات المحور الأفقي *@
+        @foreach (var c in coords)
+        {
+            <circle class="lc-dot" cx="@N(c.X)" cy="@N(c.Y)" r="4">
+                <title>@c.Point.Date.ToString("yyyy-MM-dd") — @c.Point.NetSales.ToString("N2") ج.م (@c.Point.InvoiceCount فاتورة)</title>
+            </circle>
+            @Html.Raw($"<text class=\"lc-xtick\" x=\"{N(c.X)}\" y=\"{N(baseY + 20)}\" text-anchor=\"middle\">{Enc(c.Point.Date.ToString("dd/MM"))}</text>")
+        }
+    </svg>
+</div>
+
+@functions {
+    static readonly System.Globalization.CultureInfo Inv =
+        System.Globalization.CultureInfo.InvariantCulture;
+
+    // الإحداثيات يجب أن تُكتب بثقافة ثابتة: لو استُخدمت فاصلة عشرية عربية
+    // فسيرفض المتصفح المسار بالكامل ويظهر الرسم فارغًا.
+    static string Num(double d) => d.ToString("0.##", Inv);
+
+    // ترميز أي نص يُدرَج عبر Html.Raw — حماية من XSS
+    static string Enc(string s) => System.Net.WebUtility.HtmlEncode(s);
+
+    // اختصار الأرقام الكبيرة على المحور الرأسي حتى لا تتكدّس (12500 ⇒ 12.5k)
+    static string FormatShort(decimal v)
+    {
+        if (v >= 1_000_000m) return (v / 1_000_000m).ToString("0.#", Inv) + "M";
+        if (v >= 1_000m) return (v / 1_000m).ToString("0.#", Inv) + "k";
+        return v.ToString("0", Inv);
+    }
+}

@@ -1,0 +1,245 @@
+@model List<PosSystem.Web.Services.TransferCandidateRow>
+@using PosSystem.Web.Models.Entities
+@{
+    var w = (Warehouse)ViewBag.Warehouse;
+    ViewData["Title"] = "اطلب من مخزن آخر";
+    var canSwitch = (bool)(ViewBag.CanSwitch ?? false);
+    var others = (List<Warehouse>)ViewBag.OtherWarehouses;
+    var search = ViewBag.Search as string;
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-box-arrow-in-down"></i> اطلب قطعًا لمخزن «@w.Name»
+    </h1>
+    <a class="btn btn-outline-secondary touch-btn" asp-action="Index"
+       asp-route-warehouseId="@(canSwitch ? w.Id.ToString() : null)">
+        <i class="bi bi-arrow-right"></i> طلباتي
+    </a>
+</div>
+
+@if (!others.Any())
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i>
+        لا يوجد مخزن آخر مفعّل للطلب منه — التحويل يحتاج مخزنين على الأقل.
+    </div>
+    return;
+}
+
+<form method="get" class="row g-2 align-items-end mb-3">
+    @if (canSwitch)
+    {
+        <input type="hidden" name="warehouseId" value="@w.Id" />
+    }
+    <div class="col-md-6">
+        <label class="form-label">بحث بالاسم أو الباركود</label>
+        <input name="search" value="@search" class="form-control"
+               placeholder="اكتب اسم المنتج أو امسح باركود" autofocus />
+    </div>
+    <div class="col-md-3">
+        <button type="submit" class="btn btn-outline-secondary touch-btn w-100">
+            <i class="bi bi-search"></i> بحث
+        </button>
+    </div>
+</form>
+
+<form method="post" asp-action="Create" id="reqForm"
+      asp-route-warehouseId="@(canSwitch ? w.Id.ToString() : null)">
+    @Html.AntiForgeryToken()
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <label class="form-label fw-bold">اطلب من مخزن <span class="text-danger">*</span></label>
+                    <select name="fromWarehouseId" id="srcSelect" class="form-select form-select-lg" required>
+                        <option value="">— اختر المخزن المصدر —</option>
+                        @foreach (var o in others)
+                        {
+                            <option value="@o.Id">@o.DisplayName</option>
+                        }
+                    </select>
+                    <div class="form-text">
+                        الأرصدة في الجدول تُبيّن أي مخزن يملك الصنف فعلًا — اختر منه.
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label">ملاحظات (اختياري)</label>
+                    <input name="notes" class="form-control" maxlength="500"
+                           placeholder="مثال: مطلوب قبل نهاية الأسبوع" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-wrap mb-3">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th>المنتج</th>
+                        <th style="width:150px">الباركود</th>
+                        <th style="width:110px">رصيدي</th>
+                        <th>الأرصدة في المخازن الأخرى</th>
+                        <th style="width:150px">الكمية المطلوبة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="5" class="empty-state">
+                                <i class="bi bi-search"></i>
+                                لا توجد أصناف متوفرة في مخازن أخرى@(string.IsNullOrWhiteSpace(search) ? "" : " مطابقة لبحثك")
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        foreach (var r in Model)
+                        {
+                            @* أرصدة الصنف في كل مخزن كسمات بيانات: تُستخدم لعرض
+                               المتاح في المصدر المختار بلا رحلة أخرى للخادم. *@
+                            var stockMap = string.Join(",", r.Elsewhere.Select(e => $"{e.WarehouseId}:{e.Quantity}"));
+                            <tr class="cand-row" data-stock="@stockMap">
+                                <td>
+                                    <div class="fw-bold">@r.ProductName</div>
+                                    @if (r.QuantityHere == 0)
+                                    {
+                                        <span class="badge badge-soft-red">نفد من مخزني</span>
+                                    }
+                                </td>
+                                <td class="num small text-muted">@r.Barcode</td>
+                                <td class="num fw-bold @(r.QuantityHere == 0 ? "text-danger" : "")">
+                                    @r.QuantityHere
+                                </td>
+                                <td>
+                                    @foreach (var e in r.Elsewhere)
+                                    {
+                                        <span class="badge badge-soft-green num me-1">
+                                            @e.WarehouseName: @e.Quantity
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    <input type="hidden" name="productIds" value="@r.ProductId" />
+                                    <input type="number" name="quantities" class="form-control qty-input"
+                                           value="0" min="0" max="100000" />
+                                    <div class="small avail-hint text-muted"></div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (Model.Any())
+    {
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+            <div class="text-muted">
+                إجمالي المطلوب: <b class="num" id="totalQty">0</b> قطعة
+                من <b class="num" id="totalLines">0</b> صنف
+            </div>
+            <button type="submit" class="btn btn-brand btn-lg touch-btn">
+                <i class="bi bi-send"></i> إرسال الطلب
+            </button>
+        </div>
+    }
+</form>
+
+@section Scripts {
+<script>
+(function () {
+    var form = document.getElementById('reqForm');
+    if (!form) return;
+
+    var src = document.getElementById('srcSelect');
+    var rows = Array.prototype.slice.call(document.querySelectorAll('.cand-row'));
+    var totalQty = document.getElementById('totalQty');
+    var totalLines = document.getElementById('totalLines');
+
+    // "3:12,5:0" → { "3": 12, "5": 0 }
+    function parseStock(raw) {
+        var map = {};
+        (raw || '').split(',').forEach(function (part) {
+            if (!part) return;
+            var kv = part.split(':');
+            map[kv[0]] = parseInt(kv[1], 10) || 0;
+        });
+        return map;
+    }
+
+    rows.forEach(function (row) { row._stock = parseStock(row.getAttribute('data-stock')); });
+
+    // تلميح المتاح في المصدر المختار. تحذير لا منع: الرصيد قد يتغير قبل
+    // الشحن، والتحقق الحقيقي يقع في الخادم لحظة الخصم.
+    function refreshHints() {
+        var id = src.value;
+        rows.forEach(function (row) {
+            var hint = row.querySelector('.avail-hint');
+            var input = row.querySelector('.qty-input');
+            if (!id) { hint.textContent = ''; hint.className = 'small avail-hint text-muted'; return; }
+
+            var avail = row._stock[id] || 0;
+            var qty = parseInt(input.value, 10) || 0;
+
+            if (avail === 0) {
+                hint.textContent = 'غير متوفر في المخزن المختار';
+                hint.className = 'small avail-hint text-danger';
+            } else if (qty > avail) {
+                hint.textContent = 'المتاح هناك ' + avail + ' فقط';
+                hint.className = 'small avail-hint text-warning fw-bold';
+            } else {
+                hint.textContent = 'المتاح هناك: ' + avail;
+                hint.className = 'small avail-hint text-muted';
+            }
+        });
+    }
+
+    function refreshTotals() {
+        var q = 0, lines = 0;
+        rows.forEach(function (row) {
+            var v = parseInt(row.querySelector('.qty-input').value, 10) || 0;
+            if (v > 0) { q += v; lines++; }
+        });
+        if (totalQty) totalQty.textContent = q;
+        if (totalLines) totalLines.textContent = lines;
+    }
+
+    src.addEventListener('change', refreshHints);
+    rows.forEach(function (row) {
+        row.querySelector('.qty-input').addEventListener('input', function () {
+            refreshHints();
+            refreshTotals();
+        });
+    });
+
+    form.addEventListener('submit', function (e) {
+        var any = rows.some(function (row) {
+            return (parseInt(row.querySelector('.qty-input').value, 10) || 0) > 0;
+        });
+        if (!any) {
+            e.preventDefault();
+            alert('حدّد كمية لصنف واحد على الأقل');
+            return;
+        }
+
+        // نزع name من صفوف الكمية صفر لتقليل حجم الطلب. نُزيلها من الحقلين
+        // معًا حتى يبقى المصفوفان متوازيين — إزالة أحدهما تُسند كمية لصنف خطأ.
+        rows.forEach(function (row) {
+            var qtyInput = row.querySelector('.qty-input');
+            var idInput = row.querySelector('input[type=hidden]');
+            if ((parseInt(qtyInput.value, 10) || 0) <= 0) {
+                qtyInput.removeAttribute('name');
+                idInput.removeAttribute('name');
+            }
+        });
+    });
+
+    refreshTotals();
+})();
+</script>
+}

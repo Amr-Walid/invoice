@@ -1,0 +1,164 @@
+@using PosSystem.Web.Models.Entities
+@using PosSystem.Web.Models.ViewModels
+@model PurchaseReportVm
+@{
+    ViewData["Title"] = "تقرير المشتريات";
+
+    var warehouses = ViewBag.Warehouses as List<Warehouse> ?? new List<Warehouse>();
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-graph-up-arrow"></i> تقرير المشتريات
+    </h1>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary touch-btn no-print" onclick="window.print()">
+            <i class="bi bi-printer"></i> طباعة
+        </button>
+        <a class="btn btn-outline-secondary touch-btn" asp-action="Index">
+            <i class="bi bi-list-ul"></i> أوامر الشراء
+        </a>
+    </div>
+</div>
+
+<div class="card mb-3 no-print">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small">من تاريخ</label>
+                <input type="date" name="from" class="form-control"
+                       value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">إلى تاريخ</label>
+                <input type="date" name="to" class="form-control"
+                       value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">المخزن</label>
+                <select name="warehouseId" class="form-select">
+                    <option value="">كل المخازن</option>
+                    @foreach (var w in warehouses)
+                    {
+                        <option value="@w.Id" selected="@(Model.WarehouseId == w.Id)">@w.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-brand flex-grow-1">
+                    <i class="bi bi-funnel"></i> عرض
+                </button>
+                <a class="btn btn-outline-secondary" asp-action="Report">الشهر الحالي</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="alert alert-secondary py-2">
+    <i class="bi bi-calendar-range"></i>
+    الفترة:
+    <strong class="num">@(Model.From?.ToString("yyyy-MM-dd") ?? "-")</strong>
+    إلى
+    <strong class="num">@(Model.To?.ToString("yyyy-MM-dd") ?? "-")</strong>
+    @if (Model.WarehouseId is > 0)
+    {
+        var wname = warehouses.FirstOrDefault(w => w.Id == Model.WarehouseId)?.Name;
+        <span>— مخزن <strong>@wname</strong></span>
+    }
+    <span class="text-muted">(الأوامر الملغاة مستبعدة)</span>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="text-muted small">إجمالي المشتريات</div>
+                <div class="fs-4 fw-bold num text-primary">@Model.GrandTotal.ToString("N2")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="text-muted small">عدد الأوامر</div>
+                <div class="fs-4 fw-bold num">@Model.OrderCount</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="text-muted small">قطع مستلمة / مطلوبة</div>
+                <div class="fs-4 fw-bold num">
+                    <span class="text-success">@Model.PiecesReceived</span>
+                    <span class="text-muted fs-6"> / @Model.PiecesOrdered</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="text-muted small">قطع بانتظار التوريد</div>
+                <div class="fs-4 fw-bold num @(Model.PiecesPending > 0 ? "text-warning" : "")">
+                    @Model.PiecesPending
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.OrderCount == 0)
+{
+    <div class="card">
+        <div class="card-body">
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <p>لا مشتريات في هذه الفترة</p>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    @* الترتيب مقصود: المورد أولًا لأنه أول سؤال يُطرح («على مَن أنفقنا؟») *@
+    <div class="row g-3">
+        <div class="col-lg-6">
+            @await Html.PartialAsync("_ReportTable", Model.BySupplier, new ViewDataDictionary(ViewData)
+            {
+                ["Title"] = "المشتريات بالمورد",
+                ["Icon"] = "bi-truck",
+                ["FirstCol"] = "المورد",
+                ["GrandTotal"] = Model.GrandTotal
+            })
+        </div>
+        <div class="col-lg-6">
+            @await Html.PartialAsync("_ReportTable", Model.ByWarehouse, new ViewDataDictionary(ViewData)
+            {
+                ["Title"] = "المشتريات بالمخزن",
+                ["Icon"] = "bi-building",
+                ["FirstCol"] = "المخزن",
+                ["GrandTotal"] = Model.GrandTotal
+            })
+        </div>
+        <div class="col-lg-6">
+            @await Html.PartialAsync("_ReportTable", Model.ByDay, new ViewDataDictionary(ViewData)
+            {
+                ["Title"] = "المشتريات باليوم",
+                ["Icon"] = "bi-calendar3",
+                ["FirstCol"] = "اليوم",
+                ["GrandTotal"] = Model.GrandTotal
+            })
+        </div>
+        <div class="col-lg-6">
+            @await Html.PartialAsync("_ReportTable", Model.TopProducts, new ViewDataDictionary(ViewData)
+            {
+                ["Title"] = "أكثر الأصناف شراءً",
+                ["Icon"] = "bi-box-seam",
+                ["FirstCol"] = "الصنف",
+                ["HideOrders"] = true,
+                ["GrandTotal"] = Model.GrandTotal
+            })
+        </div>
+    </div>
+}

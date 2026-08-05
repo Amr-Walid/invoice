@@ -1,0 +1,87 @@
+@model List<PosSystem.Web.Models.Entities.Category>
+@{
+    ViewData["Title"] = "التصنيفات";
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0"><i class="bi bi-tags"></i> التصنيفات</h1>
+    <a class="btn btn-brand touch-btn" asp-action="Create" asp-route-brandId="@ViewBag.BrandId">
+        <i class="bi bi-plus-lg"></i> تصنيف جديد
+    </a>
+</div>
+
+<form class="filter-bar" method="get" asp-action="Index">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label">تصفية بالبراند</label>
+            <select name="brandId" class="form-select" asp-items="ViewBag.Brands" onchange="this.form.submit()">
+                <option value="">كل البراندات</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <a asp-action="Index" class="btn btn-outline-secondary w-100">
+                <i class="bi bi-x-lg"></i> إلغاء التصفية
+            </a>
+        </div>
+    </div>
+</form>
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width:50px">#</th>
+                    <th>اسم التصنيف</th>
+                    <th>البراند</th>
+                    <th style="width:110px">المنتجات</th>
+                    <th style="width:90px">الحالة</th>
+                    <th style="width:180px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="empty-state">
+                            <i class="bi bi-tags"></i> لا توجد تصنيفات
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    var i = 1;
+                    foreach (var c in Model)
+                    {
+                        <tr>
+                            <td class="text-muted num">@(i++)</td>
+                            <td class="fw-bold">@c.Name</td>
+                            <td><span class="badge badge-soft-blue">@(c.Brand?.Name ?? "—")</span></td>
+                            <td>
+                                <a asp-controller="Products" asp-action="Index" asp-route-categoryId="@c.Id"
+                                   class="badge badge-soft-gray num text-decoration-none">@c.Products.Count</a>
+                            </td>
+                            <td>
+                                <span class="badge @(c.IsActive ? "badge-soft-green" : "badge-soft-red")">
+                                    @(c.IsActive ? "مفعل" : "معطل")
+                                </span>
+                            </td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@c.Id">
+                                    <i class="bi bi-pencil"></i> تعديل
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@c.Id" method="post" class="d-inline"
+                                      onsubmit="return confirm('هل تريد بالتأكيد حذف التصنيف «@c.Name»؟');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash3"></i> حذف
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

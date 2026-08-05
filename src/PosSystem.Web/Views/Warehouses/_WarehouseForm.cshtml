@@ -1,0 +1,54 @@
+@model PosSystem.Web.Models.Entities.Warehouse
+@* نموذج مشترك بين إضافة المخزن وتعديله *@
+
+<div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 px-3"></div>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <label asp-for="Code" class="form-label"></label>
+        <input asp-for="Code" class="form-control num" dir="ltr" placeholder="MAIN" autofocus />
+        <span asp-validation-for="Code" class="text-danger"></span>
+        <small class="text-muted">يظهر في المستندات — لا يتكرر</small>
+    </div>
+
+    <div class="col-md-8">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" placeholder="مثال: مخزن فرع المعادي" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6">
+        <label asp-for="ManagerName" class="form-label"></label>
+        <input asp-for="ManagerName" class="form-control" placeholder="اسم أمين المخزن" />
+        <span asp-validation-for="ManagerName" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6">
+        <label asp-for="Phone" class="form-label"></label>
+        <input asp-for="Phone" class="form-control num" dir="ltr" placeholder="01xxxxxxxxx" />
+        <span asp-validation-for="Phone" class="text-danger"></span>
+    </div>
+
+    <div class="col-12">
+        <label asp-for="Address" class="form-label"></label>
+        <input asp-for="Address" class="form-control" placeholder="العنوان التفصيلي" />
+        <span asp-validation-for="Address" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6">
+        <div class="form-check">
+            <input asp-for="IsActive" class="form-check-input" />
+            <label asp-for="IsActive" class="form-check-label">نشط (يمكن البيع والاستلام منه)</label>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="form-check">
+            <input asp-for="IsDefault" class="form-check-input" />
+            <label asp-for="IsDefault" class="form-check-label">المخزن الافتراضي</label>
+        </div>
+        <small class="text-muted">
+            تعيينه افتراضيًا يُنزل العلامة عن المخزن الافتراضي الحالي تلقائيًا
+        </small>
+    </div>
+</div>

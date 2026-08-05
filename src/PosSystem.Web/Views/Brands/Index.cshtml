@@ -1,0 +1,76 @@
+@model List<PosSystem.Web.Models.Entities.Brand>
+@{
+    ViewData["Title"] = "البراندات";
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0"><i class="bi bi-award"></i> البراندات</h1>
+    <a class="btn btn-brand touch-btn" asp-action="Create">
+        <i class="bi bi-plus-lg"></i> براند جديد
+    </a>
+</div>
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width:50px">#</th>
+                    <th>اسم البراند</th>
+                    <th style="width:110px">التصنيفات</th>
+                    <th style="width:110px">المنتجات</th>
+                    <th style="width:90px">الحالة</th>
+                    <th style="width:130px">تاريخ الإضافة</th>
+                    <th style="width:180px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <i class="bi bi-award"></i> لا توجد براندات — ابدأ بإضافة براند
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    var i = 1;
+                    foreach (var b in Model)
+                    {
+                        <tr>
+                            <td class="text-muted num">@(i++)</td>
+                            <td class="fw-bold">@b.Name</td>
+                            <td>
+                                <a asp-controller="Categories" asp-action="Index" asp-route-brandId="@b.Id"
+                                   class="badge badge-soft-blue num text-decoration-none">@b.Categories.Count</a>
+                            </td>
+                            <td>
+                                <a asp-controller="Products" asp-action="Index" asp-route-brandId="@b.Id"
+                                   class="badge badge-soft-gray num text-decoration-none">@b.Products.Count</a>
+                            </td>
+                            <td>
+                                <span class="badge @(b.IsActive ? "badge-soft-green" : "badge-soft-red")">
+                                    @(b.IsActive ? "مفعل" : "معطل")
+                                </span>
+                            </td>
+                            <td class="num text-muted">@b.CreatedAt.ToString("yyyy-MM-dd")</td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@b.Id">
+                                    <i class="bi bi-pencil"></i> تعديل
+                                </a>
+                                <form asp-action="Delete" asp-route-id="@b.Id" method="post" class="d-inline"
+                                      onsubmit="return confirm('هل تريد بالتأكيد حذف البراند «@b.Name»؟');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash3"></i> حذف
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

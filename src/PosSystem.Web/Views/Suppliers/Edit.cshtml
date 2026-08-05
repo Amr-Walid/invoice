@@ -1,0 +1,37 @@
+@model PosSystem.Web.Models.Entities.Supplier
+@{
+    ViewData["Title"] = "تعديل مورد";
+}
+
+<h1 class="page-title"><i class="bi bi-pencil-square"></i> تعديل المورد «@Model.Name»</h1>
+
+<div class="row">
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-body">
+                <form asp-action="Edit" method="post">
+                    @await Html.PartialAsync("_SupplierForm", Model)
+
+                    @* تغيير الاسم لا يمسّ أوامر الشراء القديمة: كل أمر يحفظ
+                       اسم المورد لحظة إنشائه (snapshot) فتبقى أوراقه القديمة
+                       مطابقة لما وُقّع عليه *@
+                    <div class="alert alert-info mt-3 mb-0 small">
+                        <i class="bi bi-info-circle"></i>
+                        تعديل الاسم لا يُغيّر أوامر الشراء السابقة — كل أمر يحفظ
+                        اسم المورد كما كان لحظة إنشائه.
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-brand touch-btn px-4">
+                            <i class="bi bi-check-lg"></i> حفظ التعديلات
+                        </button>
+                        <a asp-action="Details" asp-route-id="@Model.Id"
+                           class="btn btn-outline-secondary touch-btn px-4">إلغاء</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts { @await Html.PartialAsync("_ValidationScriptsPartial") }

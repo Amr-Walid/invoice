@@ -1,0 +1,126 @@
+@model List<PosSystem.Web.Models.Entities.Warehouse>
+@using PosSystem.Web.Models.Entities
+@{
+    ViewData["Title"] = "المخازن";
+    var stats = ViewBag.StockStats as Dictionary<int, (int Products, int Pieces)>
+                ?? new Dictionary<int, (int, int)>();
+    var users = ViewBag.UserCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var isAdmin = User.IsInRole(AppRoles.Admin);
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0"><i class="bi bi-building"></i> المخازن</h1>
+    @if (isAdmin)
+    {
+        <a class="btn btn-brand touch-btn" asp-action="Create">
+            <i class="bi bi-plus-lg"></i> مخزن جديد
+        </a>
+    }
+</div>
+
+<div class="table-wrap">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width:50px">#</th>
+                    <th style="width:100px">الكود</th>
+                    <th>اسم المخزن</th>
+                    <th>المسؤول</th>
+                    <th style="width:100px">الأصناف</th>
+                    <th style="width:100px">القطع</th>
+                    <th style="width:100px">المستخدمون</th>
+                    <th style="width:100px">الحالة</th>
+                    <th style="width:260px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="9" class="empty-state">
+                            <i class="bi bi-building"></i> لا توجد مخازن — ابدأ بإضافة مخزن
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    var i = 1;
+                    foreach (var w in Model)
+                    {
+                        var s = stats.TryGetValue(w.Id, out var v) ? v : (Products: 0, Pieces: 0);
+                        var userCount = users.TryGetValue(w.Id, out var u) ? u : 0;
+                        <tr>
+                            <td class="text-muted num">@(i++)</td>
+                            <td><span class="badge badge-soft-gray num">@w.Code</span></td>
+                            <td class="fw-bold">
+                                @w.Name
+                                @if (w.IsDefault)
+                                {
+                                    <span class="badge badge-soft-blue ms-1">افتراضي</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(w.Address))
+                                {
+                                    <div class="small text-muted">@w.Address</div>
+                                }
+                            </td>
+                            <td>
+                                @(string.IsNullOrWhiteSpace(w.ManagerName) ? "—" : w.ManagerName)
+                                @if (!string.IsNullOrWhiteSpace(w.Phone))
+                                {
+                                    <div class="small text-muted num" dir="ltr">@w.Phone</div>
+                                }
+                            </td>
+                            <td><span class="badge badge-soft-gray num">@s.Products</span></td>
+                            <td><span class="badge badge-soft-green num">@s.Pieces</span></td>
+                            <td><span class="badge badge-soft-gray num">@userCount</span></td>
+                            <td>
+                                <span class="badge @(w.IsActive ? "badge-soft-green" : "badge-soft-red")">
+                                    @(w.IsActive ? "نشط" : "معطل")
+                                </span>
+                            </td>
+                            <td>
+                                <a class="btn btn-sm btn-outline-secondary" asp-action="Stock" asp-route-id="@w.Id">
+                                    <i class="bi bi-box-seam"></i> المخزون
+                                </a>
+                                @if (isAdmin)
+                                {
+                                    <a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@w.Id">
+                                        <i class="bi bi-pencil"></i> تعديل
+                                    </a>
+                                    @if (!w.IsDefault && w.IsActive)
+                                    {
+                                        <form asp-action="SetDefault" asp-route-id="@w.Id" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-info"
+                                                    title="اجعله المخزن الافتراضي">
+                                                <i class="bi bi-star"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                    @if (!w.IsDefault)
+                                    {
+                                        <form asp-action="Delete" asp-route-id="@w.Id" method="post" class="d-inline"
+                                              onsubmit="return confirm('هل تريد بالتأكيد حذف المخزن «@w.Name»؟');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="alert alert-info mt-3 py-2 px-3 small">
+    <i class="bi bi-info-circle"></i>
+    المخزن الافتراضي هو المخزن الذي تُودَع فيه الأرصدة الافتتاحية عند عدم اختيار
+    مخزن صراحةً. لا يمكن حذفه ولا تعطيله، ولا يُحذف أي مخزن له أرصدة أو حركات —
+    يُعطَّل بدلًا من ذلك حتى تبقى حركاته التاريخية مقروءة.
+</div>

@@ -1,0 +1,190 @@
+@model PosSystem.Web.Models.Entities.Invoice
+@*
+    تفاصيل الفاتورة: أسعار البيع والخصومات فقط — بلا تكلفة أو أرباح.
+    أعمدة المرتجع تظهر فقط لو كان للفاتورة مرتجعات فعلًا، حتى لا تتزحم الشاشة
+    في الحالة الشائعة (فاتورة بلا مرتجع).
+*@
+@{
+    var hasReturns = Model.ReturnedQuantity > 0 || Model.RefundedAmount > 0;
+}
+
+<div class="row g-3">
+    <!-- ============ بيانات الفاتورة ============ -->
+    <div class="col-lg-8">
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span><i class="bi bi-receipt"></i> بيانات الفاتورة</span>
+                @* الحالة الآن أربع قيم (تشمل المرتجع الجزئي والكامل) — نقرأ الوسم من الكيان *@
+                <span class="badge @Model.StatusBadgeClass">@Model.StatusLabel</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="text-muted" style="font-size:.82rem">رقم الفاتورة</div>
+                        <div class="fw-bold num" style="font-size:1.1rem">@Model.InvoiceNumber</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted" style="font-size:.82rem">التاريخ والوقت</div>
+                        <div class="fw-semibold num">@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted" style="font-size:.82rem">
+                            <i class="bi bi-person-badge"></i> المندوب البائع
+                        </div>
+                        <div class="fw-semibold">@(Model.Agent?.FullName ?? "—")</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="text-muted" style="font-size:.82rem">
+                            <i class="bi bi-person"></i> العميل
+                        </div>
+                        <div class="fw-semibold">
+                            @(string.IsNullOrWhiteSpace(Model.CustomerName) ? "غير محدد" : Model.CustomerName)
+                            @if (!string.IsNullOrWhiteSpace(Model.CustomerPhone))
+                            {
+                                <span class="text-muted num">— @Model.CustomerPhone</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ الأصناف ============ -->
+        <div class="table-wrap">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width:32px">#</th>
+                            <th>المنتج</th>
+                            <th>الباركود</th>
+                            <th>البراند / التصنيف</th>
+                            <th>سعر الوحدة</th>
+                            <th class="text-center">الكمية</th>
+                            @if (hasReturns)
+                            {
+                                <th class="text-center">المُرجَع</th>
+                            }
+                            <th>الإجمالي</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ var idx = 1; }
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td class="text-muted num">@(idx++)</td>
+                                <td class="fw-semibold">@item.ProductName</td>
+                                <td class="num barcode-text text-muted">@item.Barcode</td>
+                                <td style="font-size:.84rem">
+                                    @if (item.Product?.Brand != null)
+                                    {
+                                        <span class="badge badge-soft-blue">@item.Product.Brand.Name</span>
+                                    }
+                                    @if (item.Product?.Category != null)
+                                    {
+                                        <span class="badge badge-soft-gray">@item.Product.Category.Name</span>
+                                    }
+                                </td>
+                                <td class="num">@item.UnitPrice.ToString("N2")</td>
+                                <td class="text-center"><strong class="num">@item.Quantity</strong></td>
+                                @if (hasReturns)
+                                {
+                                    <td class="text-center">
+                                        @if (item.ReturnedQuantity > 0)
+                                        {
+                                            <span class="badge badge-soft-orange num">@item.ReturnedQuantity</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                }
+                                <td class="num fw-bold">@item.LineTotal.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ الإجماليات ============ -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-calculator"></i> الحساب</div>
+            <div class="card-body">
+                <div class="totals-row">
+                    <span>عدد الأصناف</span>
+                    <strong class="num">@Model.Items.Count</strong>
+                </div>
+                <div class="totals-row">
+                    <span>عدد القطع</span>
+                    <strong class="num">@Model.TotalQuantity</strong>
+                </div>
+                <hr class="my-2">
+                <div class="totals-row">
+                    <span>الإجمالي قبل الخصم</span>
+                    <strong class="num">@Model.SubTotal.ToString("N2")</strong>
+                </div>
+
+                @if (Model.DiscountAmount > 0)
+                {
+                    <div class="totals-row discount">
+                        <span>
+                            الخصم
+                            <span class="badge badge-soft-red num">@Model.DiscountPercentage.ToString("0.##")%</span>
+                        </span>
+                        <strong class="num">- @Model.DiscountAmount.ToString("N2")</strong>
+                    </div>
+                    <div class="totals-row" style="font-size:.85rem">
+                        <span class="text-muted">كود الخصم المستخدم</span>
+                        <span class="badge badge-soft-blue num">@Model.CouponCode</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="totals-row text-muted" style="font-size:.88rem">
+                        <span>الخصم</span><span>لا يوجد</span>
+                    </div>
+                }
+
+                <div class="totals-row grand">
+                    <span>الإجمالي الكلي</span>
+                    <strong class="num">@Model.Total.ToString("N2")</strong>
+                </div>
+
+                @if (hasReturns)
+                {
+                    <hr class="my-2">
+                    <div class="totals-row discount">
+                        <span><i class="bi bi-arrow-counterclockwise"></i> المُردّ للعميل</span>
+                        <strong class="num">- @Model.RefundedAmount.ToString("N2")</strong>
+                    </div>
+                    <div class="totals-row" style="font-size:.85rem">
+                        <span class="text-muted">قطع مُرجَعة</span>
+                        <span class="badge badge-soft-orange num">@Model.ReturnedQuantity من @Model.TotalQuantity</span>
+                    </div>
+                    <div class="totals-row grand">
+                        <span>الصافي بعد المرتجعات</span>
+                        <strong class="num">@Model.NetAfterReturns.ToString("N2")</strong>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (Model.HasReturnableItems)
+        {
+            <a class="btn btn-outline-warning w-100 mt-3 touch-btn"
+               asp-controller="Returns" asp-action="Create" asp-route-invoiceId="@Model.Id">
+                <i class="bi bi-arrow-counterclockwise"></i> عمل مرتجع لهذه الفاتورة
+            </a>
+        }
+
+        <a class="btn btn-brand w-100 mt-3 touch-btn" asp-controller="Pos" asp-action="Receipt"
+           asp-route-id="@Model.Id" target="_blank">
+            <i class="bi bi-printer"></i> طباعة الفاتورة
+        </a>
+    </div>
+</div>

@@ -1,0 +1,85 @@
+@model List<PosSystem.Web.Models.Entities.StockTransfer>
+@using PosSystem.Web.Models.Entities
+@{
+    var w = (Warehouse)ViewBag.Warehouse;
+    ViewData["Title"] = "طلبات التحويل";
+    var canSwitch = (bool)(ViewBag.CanSwitch ?? false);
+    var pendingIncoming = (int)(ViewBag.PendingIncoming ?? 0);
+    var isKeeperOrAdmin = User.IsInRole(AppRoles.Admin) || User.IsInRole(AppRoles.WarehouseKeeper);
+
+    var awaiting = Model.Count(t => t.Status == TransferStatus.Pending);
+    var inTransit = Model.Where(t => t.Status == TransferStatus.Shipped).Sum(t => t.TotalInTransit);
+    var readyToReceive = Model.Count(t => t.CanReceive);
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="page-title mb-0">
+        <i class="bi bi-arrow-left-right"></i> طلباتي من المخازن
+        <span class="badge badge-soft-gray">@w.Name</span>
+    </h1>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-brand touch-btn" asp-action="Create"
+           asp-route-warehouseId="@(canSwitch ? w.Id.ToString() : null)">
+            <i class="bi bi-plus-lg"></i> اطلب من مخزن آخر
+        </a>
+        @if (isKeeperOrAdmin)
+        {
+            <a class="btn btn-outline-primary touch-btn" asp-action="Incoming"
+               asp-route-warehouseId="@(canSwitch ? w.Id.ToString() : null)">
+                <i class="bi bi-inbox"></i> طلبات واردة
+                @if (pendingIncoming > 0)
+                {
+                    <span class="badge bg-danger num">@pendingIncoming</span>
+                }
+            </a>
+        }
+    </div>
+</div>
+
+@if (readyToReceive > 0)
+{
+    @* التنبيه أعلى الصفحة لأن الاستلام هو الإجراء الوحيد المعلَّق على الطالب،
+       وتأخيره يترك القطع «في الطريق» فلا تظهر في أي مخزن. *@
+    <div class="alert alert-warning d-flex align-items-center gap-2">
+        <i class="bi bi-truck fs-4"></i>
+        <div>
+            <b class="num">@readyToReceive</b> طلب وصل ولم تُسجّل استلامه —
+            القطع لن تظهر في مخزنك قبل الاستلام.
+        </div>
+    </div>
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">إجمالي طلباتي</div>
+            <div class="fs-4 fw-bold num">@Model.Count</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">بانتظار الموافقة</div>
+            <div class="fs-4 fw-bold num @(awaiting > 0 ? "text-warning" : "")">@awaiting</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">قطع في الطريق إليّ</div>
+            <div class="fs-4 fw-bold num @(inTransit > 0 ? "text-primary" : "")">@inTransit</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card"><div class="card-body py-3">
+            <div class="text-muted small">جاهز للاستلام</div>
+            <div class="fs-4 fw-bold num @(readyToReceive > 0 ? "text-danger" : "")">@readyToReceive</div>
+        </div></div>
+    </div>
+</div>
+
+@await Html.PartialAsync("_TransferFilter", new ViewDataDictionary(ViewData) { ["FilterAction"] = "Index" })
+
+@await Html.PartialAsync("_TransferTable", Model, new ViewDataDictionary(ViewData)
+{
+    ["Mode"] = "outgoing",
+    ["EmptyText"] = "لم تطلب تحويلًا بعد — اضغط «اطلب من مخزن آخر» عند نقص صنف"
+})
