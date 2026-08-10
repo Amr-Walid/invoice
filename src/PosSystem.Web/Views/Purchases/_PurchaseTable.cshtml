@@ -2,6 +2,11 @@
 @using PosSystem.Web.Models.Entities
 @{
     var emptyText = ViewData["EmptyText"] as string ?? "لا توجد أوامر شراء";
+
+    // عمود الإجمالي يسقط لمن لا يرى التكاليف، ولا يُفرّغ: عمود
+    // فارغ يدفع المستخدم للسؤال عن رقمٍ لم يُرد أن يُعرف.
+    var canSeeCost = ViewBag.CanSeeCost is not false;
+    var colCount = canSeeCost ? 8 : 7;
 }
 
 @* جدول مشترك بين «كل الأوامر» و«الأوامر المفتوحة» — منطق العرض واحد فلا
@@ -16,7 +21,10 @@
                     <th>المخزن المستقبِل</th>
                     <th style="width:90px">الأصناف</th>
                     <th style="width:130px">مستلم / مطلوب</th>
-                    <th style="width:130px">الإجمالي</th>
+                    @if (canSeeCost)
+                    {
+                        <th style="width:130px">الإجمالي</th>
+                    }
                     <th style="width:115px">التوريد المتوقع</th>
                     <th style="width:170px">الحالة</th>
                 </tr>
@@ -24,7 +32,7 @@
             <tbody>
                 @if (!Model.Any())
                 {
-                    <tr><td colspan="8" class="empty-state"><i class="bi bi-cart-x"></i> @emptyText</td></tr>
+                    <tr><td colspan="@colCount" class="empty-state"><i class="bi bi-cart-x"></i> @emptyText</td></tr>
                 }
                 else
                 {
@@ -53,7 +61,10 @@
                                     <div class="small text-muted num">متبقٍ @o.TotalRemaining</div>
                                 }
                             </td>
-                            <td class="num fw-bold">@o.Total.ToString("N2")</td>
+                            @if (canSeeCost)
+                            {
+                                <td class="num fw-bold">@o.Total.ToString("N2")</td>
+                            }
                             <td class="num small">
                                 @if (o.ExpectedDate.HasValue)
                                 {

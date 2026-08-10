@@ -18,8 +18,12 @@ namespace PosSystem.Web.Controllers;
 ///
 /// العزل: المندوب لا يُرجع إلا فواتيره ولا يرى إلا مرتجعاته. مطبَّق داخل
 /// <see cref="IReturnService"/> عبر restrictTo، فلا يمكن تجاوزه بتعديل الرابط.
+///
+/// الأدوار: البيع والإرجاع وجهان لعملٍ واحد، فمن لا يبيع لا يُرجع. أمين
+/// المخزن مستثنى صراحةً — المرتجع يردّ نقودًا ويحرّك رصيدًا، و<c>[Authorize]</c>
+/// المجرّدة كانت تفتحه لأي مستخدم مسجَّل.
 /// </summary>
-[Authorize]
+[Authorize(Roles = AppRoles.AdminOrAgent)]
 public class ReturnsController : Controller
 {
     private readonly IReturnService _returns;

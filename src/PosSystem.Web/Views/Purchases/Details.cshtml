@@ -5,6 +5,9 @@
     ViewData["Title"] = $"أمر شراء {o.PurchaseNumber}";
     var isAdmin = (bool)(ViewBag.IsAdmin ?? false);
     var canCancel = (bool)(ViewBag.CanCancel ?? false);
+
+    // أمين المخزن يرى الأمر ليعدّ ويستلم، لا ليعرف بكم اشترى المدير.
+    var canSeeCost = (bool)(ViewBag.CanSeeCost ?? false);
 }
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -191,11 +194,17 @@ else if (o.Status == PurchaseStatus.Cancelled)
                 <tr>
                     <th>الصنف</th>
                     <th style="width:120px">الباركود</th>
-                    <th style="width:110px">تكلفة الوحدة</th>
+                    @if (canSeeCost)
+                    {
+                        <th style="width:110px">تكلفة الوحدة</th>
+                    }
                     <th style="width:90px">مطلوب</th>
                     <th style="width:90px">مستلم</th>
                     <th style="width:90px">متبقٍ</th>
-                    <th style="width:110px">إجمالي السطر</th>
+                    @if (canSeeCost)
+                    {
+                        <th style="width:110px">إجمالي السطر</th>
+                    }
                     <th style="width:110px">الرصيد الآن</th>
                 </tr>
             </thead>
@@ -206,7 +215,10 @@ else if (o.Status == PurchaseStatus.Cancelled)
                     <tr>
                         <td class="fw-bold">@it.ProductName</td>
                         <td class="num small" dir="ltr">@it.Barcode</td>
-                        <td class="num">@it.UnitCost.ToString("N2")</td>
+                        @if (canSeeCost)
+                        {
+                            <td class="num">@it.UnitCost.ToString("N2")</td>
+                        }
                         <td class="num">@it.Quantity</td>
                         <td class="num">@it.ReceivedQuantity</td>
                         <td class="num">
@@ -220,7 +232,10 @@ else if (o.Status == PurchaseStatus.Cancelled)
                                 <span class="badge badge-soft-green">تم</span>
                             }
                         </td>
-                        <td class="num fw-bold">@it.LineTotal.ToString("N2")</td>
+                        @if (canSeeCost)
+                        {
+                            <td class="num fw-bold">@it.LineTotal.ToString("N2")</td>
+                        }
                         <td class="num">
                             <span class="badge badge-soft-gray num">@here</span>
                         </td>
@@ -229,28 +244,34 @@ else if (o.Status == PurchaseStatus.Cancelled)
             </tbody>
             <tfoot>
                 <tr class="fw-bold">
-                    <td colspan="3" class="text-end">المجاميع</td>
+                    <td colspan="@(canSeeCost ? 3 : 2)" class="text-end">المجاميع</td>
                     <td class="num">@o.TotalOrdered</td>
                     <td class="num">@o.TotalReceived</td>
                     <td class="num">@o.TotalRemaining</td>
-                    <td class="num">@o.SubTotal.ToString("N2")</td>
+                    @if (canSeeCost)
+                    {
+                        <td class="num">@o.SubTotal.ToString("N2")</td>
+                    }
                     <td></td>
                 </tr>
-                @if (o.DiscountPercentage > 0)
+                @if (canSeeCost && o.DiscountPercentage > 0)
                 {
                     <tr>
                         <td colspan="6" class="text-end text-muted">
-                            خصم @o.DiscountPercentage.ToString("0.##")%
+                            <span>خصم @o.DiscountPercentage.ToString("0.##")%</span>
                         </td>
                         <td class="num text-danger">-@o.DiscountAmount.ToString("N2")</td>
                         <td></td>
                     </tr>
                 }
-                <tr class="fw-bold fs-5">
-                    <td colspan="6" class="text-end">الإجمالي</td>
-                    <td class="num text-primary">@o.Total.ToString("N2")</td>
-                    <td></td>
-                </tr>
+                @if (canSeeCost)
+                {
+                    <tr class="fw-bold fs-5">
+                        <td colspan="6" class="text-end">الإجمالي</td>
+                        <td class="num text-primary">@o.Total.ToString("N2")</td>
+                        <td></td>
+                    </tr>
+                }
             </tfoot>
         </table>
     </div>

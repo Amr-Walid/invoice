@@ -80,7 +80,19 @@ def cache(pid):
 
 
 def total(pid):
+    """مجموع أرصدة الصنف في كل المخازن — يقابله الكاش في Products."""
     return q("SELECT COALESCE(SUM(Quantity),0) FROM ProductStocks WHERE ProductId=?", (pid,))[0][0]
+
+
+def pair_total(pid):
+    """مجموع رصيد الصنف في مخزنَي الاختبار وحدهما.
+
+    حفظُ الكمية (لا تتبخّر ولا تُخترع) يُقاس على طرفَي التحويل، لا على
+    مجموع المخازن كلها: أي رصيد لنفس الصنف في مخزن ثالث يزيد المجموع بمقدار
+    ثابت فيفشل التأكيد بلا خطأ في النظام — وهذا ما حدث حين صار للصنف رصيد
+    في مخازن العرض. القياس المقيَّد بالطرفين يحفظ المعنى ويصمد مع البيانات.
+    """
+    return stock(pid, W1) + stock(pid, W2)
 
 
 def check_cache(label, pid):
@@ -100,7 +112,7 @@ rows = q("SELECT Id FROM Warehouses WHERE Code=?", (W2_CODE,))
 if not rows:
     tok, _, _ = get(opa, "/Warehouses/Create")
     post(opa, "/Warehouses/Create",
-         [("Code", W2_CODE), ("Name", "مخزن اختبار التحويل"),
+         [("Code", W2_CODE), ("Name", "مخزن فرع شبرا"),
           ("ManagerName", "أمين"), ("IsActive", "true")], tok)
     rows = q("SELECT Id FROM Warehouses WHERE Code=?", (W2_CODE,))
 
@@ -245,8 +257,8 @@ chk("الحركة مربوطة برقم التحويل", mv[0][3] == TID)
 
 # القطع في الطريق: خرجت من المصدر ولم تدخل الهدف — ليست في أي رصيد
 chk(f"القطع في الطريق = {SHIP} (ليست في أي مخزن)",
-    total(PID) == (SRC0 + DST0) - SHIP,
-    f"مجموع الأرصدة={total(PID)} المتوقع={(SRC0 + DST0) - SHIP}")
+    pair_total(PID) == (SRC0 + DST0) - SHIP,
+    f"مجموع رصيد الطرفين={pair_total(PID)} المتوقع={(SRC0 + DST0) - SHIP}")
 check_cache("بعد الشحن", PID)
 
 _, html, _ = get(opa, f"/Transfers/Details/{TID}")
@@ -333,8 +345,8 @@ chk(f"الحركة على المخزن الهدف ({mv_in[0][2]})", mv_in[0][2] 
 
 # الفرق بين المشحون والمستلم يبقى «في الطريق» حتى يُسوّى بجرد صريح
 chk(f"فرق النقص ({SHIP - RECV}) لم يتبخّر ولم يُخترع",
-    total(PID) == (SRC0 + DST0) - (SHIP - RECV),
-    f"مجموع الأرصدة={total(PID)} المتوقع={(SRC0 + DST0) - (SHIP - RECV)}")
+    pair_total(PID) == (SRC0 + DST0) - (SHIP - RECV),
+    f"مجموع رصيد الطرفين={pair_total(PID)} المتوقع={(SRC0 + DST0) - (SHIP - RECV)}")
 check_cache("بعد الاستلام", PID)
 
 

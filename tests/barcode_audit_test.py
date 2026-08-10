@@ -18,6 +18,12 @@ PASSED, FAILED = [], []
 
 ADMIN_NAME = "مدير النظام"        # FullName المزروع في DbSeeder
 AGENT_NAME = "مندوب المبيعات"
+KEEPER_NAME = "أمين المخزن"        # دور ثالث أُضيف لاحقًا للنظام
+
+# كل أسماء الموظّفين المزروعين: القائمة كانت تقتصر على المدير والمندوب
+# وحدهما من قبل إضافة دور أمين المخزن، فصار ظهوره في السجل — وهو
+# السلوك الصحيح لأن السجل يوثّق عمله — يُقرأ فشلًا في الاختبار.
+STAFF_NAMES = {ADMIN_NAME, AGENT_NAME, KEEPER_NAME}
 
 
 def check(name, cond, detail=""):
@@ -243,7 +249,7 @@ with sync_playwright() as p:
     check("عمود «المستخدم» لا يعرض البريد الإلكتروني بدل الاسم",
           user_col and not any("@" in u for u in user_col), f"users={user_col[:5]}")
     check("كل أسماء المستخدمين من الأسماء العربية المعروفة",
-          set(user_col) <= {ADMIN_NAME, AGENT_NAME}, f"users={set(user_col)}")
+          set(user_col) <= STAFF_NAMES, f"users={set(user_col)}")
 
     print("\n=== ب‑2. عملية «طباعة باركود» سُجِّلت ===")
     check("نوع العملية «طباعة باركود» موجود في السجل",

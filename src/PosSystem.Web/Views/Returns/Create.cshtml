@@ -200,8 +200,20 @@ else
                             لا يصلح للبيع مرة أخرى.
                         *@
                         <div class="form-check form-switch restock-switch p-3 rounded border">
+                            @*
+                                الحقل المخفي «false» بعد المفتاح ضرورة لا تزيين: المتصفّح
+                                لا يُرسل checkbox غير المُحدَّد أصلًا، والخاصية افتراضها
+                                true، فإلغاء المفتاح كان يصل للسيرفر كـ true فيُعاد
+                                التالف إلى الرصيد ويُنفَخ المخزون بأجهزة لا تُباع.
+                                الترتيب مقصود ولا يجوز عكسه: ربط ASP.NET للـ bool يأخذ
+                                أول قيمة (FirstValue)، فالمفتاح أولًا يعني «true,false»
+                                عند التحديد = true، والمخفي وحده عند الإلغاء = false.
+                                لو سبق المخفيُّ المفتاحَ لصارت النتيجة false دائمًا.
+                                هذا هو أسلوب asp-for القياسي نفسه.
+                            *@
                             <input class="form-check-input" type="checkbox" role="switch"
                                    id="RestockToInventory" name="RestockToInventory" value="true" checked />
+                            <input type="hidden" name="RestockToInventory" value="false" />
                             <label class="form-check-label fw-bold" for="RestockToInventory">
                                 <i class="bi bi-box-arrow-in-down"></i>
                                 إعادة الأصناف إلى المخزون

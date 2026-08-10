@@ -133,7 +133,7 @@ rows = q("SELECT Id FROM Warehouses WHERE Code=?", (W2_CODE,))
 if not rows:
     tok, _, _ = get(opa, "/Warehouses/Create")
     post(opa, "/Warehouses/Create",
-         [("Code", W2_CODE), ("Name", "مخزن اختبار المشتريات"),
+         [("Code", W2_CODE), ("Name", "مخزن فرع الهرم"),
           ("ManagerName", "أمين ٢"), ("IsActive", "true")], tok)
     rows = q("SELECT Id FROM Warehouses WHERE Code=?", (W2_CODE,))
 W2 = rows[0][0]
@@ -147,7 +147,7 @@ rows = q("SELECT Id FROM Suppliers WHERE PhoneNormalized LIKE ?", ("%99887766",)
 if not rows:
     tok, _, _ = get(opa, "/Suppliers/Create")
     post(opa, "/Suppliers/Create",
-         [("Name", "مورد اختبار المشتريات"), ("Phone", SUP_PHONE),
+         [("Name", "شركة الهرم للتوريدات"), ("Phone", SUP_PHONE),
           ("ContactPerson", "أ. سامي"), ("IsActive", "true")], tok)
     rows = q("SELECT Id FROM Suppliers WHERE PhoneNormalized LIKE ?", ("%99887766",))
 chk("المورد أُنشئ", len(rows) == 1)
@@ -535,10 +535,10 @@ chk("تقرير المشتريات يُفتح", "تقرير المشتريات" 
 chk("التقرير فيه تقسيم بالمورد", "المشتريات بالمورد" in html)
 chk("التقرير فيه تقسيم بالمخزن", "المشتريات بالمخزن" in html)
 chk("التقرير فيه أكثر الأصناف شراءً", "أكثر الأصناف" in html)
-chk("اسم المورد ظاهر في التقرير", "مورد اختبار المشتريات" in html)
+chk("اسم المورد ظاهر في التقرير", "شركة الهرم للتوريدات" in html)
 
 _, html, _ = get(opa, "/Suppliers")
-chk("قائمة الموردين تعرض المورد", "مورد اختبار المشتريات" in html)
+chk("قائمة الموردين تعرض المورد", "شركة الهرم للتوريدات" in html)
 
 
 # ======================================================================

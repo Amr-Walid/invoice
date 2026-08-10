@@ -160,7 +160,7 @@ def main():
             {"productId": 6, "barcode": "6941238703221", "quantity": 1},
         ],
         "couponCode": "SAVE20",
-        "customerName": "عميل الاختبار",
+        "customerName": "سمير عبد اللطيف",
         "customerPhone": "01000000000",
     }
     status, data = agent.post_json("/Pos/Checkout", payload, token)
@@ -206,7 +206,7 @@ def main():
 
     status, html, _ = agent.get(f"/AgentReports/Details/{invoice_id}")
     check("تفاصيل الفاتورة تُفتح للمندوب", status == 200, f"status={status}")
-    check("اسم العميل يظهر", "عميل الاختبار" in html)
+    check("اسم العميل يظهر", "سمير عبد اللطيف" in html)
     check("كود الخصم يظهر", "SAVE20" in html)
     check("المندوب لا يرى الأرباح", "الربح" not in html)
 

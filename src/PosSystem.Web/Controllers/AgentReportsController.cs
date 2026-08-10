@@ -10,8 +10,11 @@ namespace PosSystem.Web.Controllers;
 /// <summary>
 /// تقارير المندوب — يرى فواتيره هو فقط.
 /// العزل مطبَّق في الـ Service عبر restrictToAgentId، لا في الواجهة فقط.
+///
+/// أمين المخزن لا يبيع فلا فواتير له، وكانت الشاشة تفتح له فارغة —
+/// وهو ما يُقرأ «النظام لا يعمل» لا «لا صلاحية».
 /// </summary>
-[Authorize]
+[Authorize(Roles = AppRoles.AdminOrAgent)]
 public class AgentReportsController : Controller
 {
     private readonly IReportService _reports;

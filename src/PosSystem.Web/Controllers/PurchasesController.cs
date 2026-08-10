@@ -60,11 +60,17 @@ public class PurchasesController : Controller
         // نهاية ذلك اليوم لا بدايته، وإلا اختفت أوامر اليوم الأخير
         var toExclusive = to?.Date.AddDays(1);
 
-        var vm = await _purchases.ListAsync(q, supplierId, warehouseId, status,
+        // القيد بالمخزن هنا كما في Open: كانت هذه الشاشة تعرض لأمين المخزن
+        // أوامر المخازن كلها، فيرى مشتريات فروع ليست شغله بمجرد تعديل الرابط.
+        var effectiveWarehouse = await ResolveWarehouseFilterAsync(warehouseId);
+
+        var vm = await _purchases.ListAsync(q, supplierId, effectiveWarehouse, status,
             from?.Date, toExclusive, page, PageSize);
 
-        await FillFiltersAsync(supplierId, warehouseId);
+        await FillFiltersAsync(supplierId, effectiveWarehouse);
         ViewBag.CanManage = _currentUser.IsAdmin;
+        ViewBag.CanSeeCost = _currentUser.IsAdmin;
+        ViewBag.LockedWarehouse = effectiveWarehouse.HasValue && !_currentUser.IsAdmin;
         return View(vm);
     }
 
@@ -88,6 +94,7 @@ public class PurchasesController : Controller
 
         await FillFiltersAsync(null, effectiveWarehouse);
         ViewBag.CanManage = _currentUser.IsAdmin;
+        ViewBag.CanSeeCost = _currentUser.IsAdmin;
         ViewBag.LockedWarehouse = effectiveWarehouse.HasValue && !_currentUser.IsAdmin;
         return View(vm);
     }
@@ -106,6 +113,11 @@ public class PurchasesController : Controller
         vm.CanReceive = vm.Order.CanReceive && await CanReceiveOrderAsync(vm.Order);
 
         ViewBag.IsAdmin = _currentUser.IsAdmin;
+
+        // التكلفة معلومة تعاقدية بين المدير والمورد: أمين المخزن يعدّ القطع
+        // ويوقّع الاستلام، ولا شغل له بالسعر — وإظهاره له تسريبٌ لهامش الشراء
+        // لمن لا يحتاجه. (نفس القرار الذي بُني عليه غياب تقارير الربح.)
+        ViewBag.CanSeeCost = _currentUser.IsAdmin;
         ViewBag.CanCancel = _currentUser.IsAdmin && vm.Order.CanCancel;
         return View(vm);
     }
