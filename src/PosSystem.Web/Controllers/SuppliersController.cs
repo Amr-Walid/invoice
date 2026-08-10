@@ -36,6 +36,10 @@ public class SuppliersController : Controller
     {
         var vm = await _suppliers.SearchAsync(q, includeInactive, page, PageSize);
         ViewBag.CanManage = _currentUser.IsAdmin;
+
+        // أمين المخزن يحتاج بيانات المورد ليتواصل معه ويستلم منه، ولا يحتاج
+        // مبالغ تعاملنا معه — وهي معلومة تفاوضية تُبنى عليها الأسعار.
+        ViewBag.CanSeeCost = _currentUser.IsAdmin;
         return View(vm);
     }
 
@@ -48,6 +52,7 @@ public class SuppliersController : Controller
         if (vm is null) return NotFound();
 
         ViewBag.CanManage = _currentUser.IsAdmin;
+        ViewBag.CanSeeCost = _currentUser.IsAdmin;
         return View(vm);
     }
 

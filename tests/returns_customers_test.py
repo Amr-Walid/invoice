@@ -111,7 +111,11 @@ def lookup(client, barcode):
 
 
 def stock_of(client, barcode):
-    """رصيد المخزون الحالي لمنتج — المصدر الوحيد للتحقق من إعادة الكمية."""
+    """رصيد المخزون الحالي لمنتج — المصدر الوحيد للتحقق من إعادة الكمية.
+
+    يُقرأ دائمًا بعين البائع نفسه: المخزون مقيَّد بمخزن كل مستخدم، فقياس
+    «قبل» بعين والتحقق «بعد» بعين أخرى يقارن رصيدَي مخزنين مختلفين.
+    """
     data = lookup(client, barcode)
     return data["stockQuantity"] if data else None
 
@@ -147,8 +151,11 @@ def main():
     barcodes = re.findall(r'barcode-text[^>]*>\s*([0-9]{6,})\s*<', products)
     if len(barcodes) < 2:
         barcodes = re.findall(r'>\s*([0-9]{8,14})\s*<', products)
-    # نستبعد المنتجات التي نفد مخزونها: لا يمكن بيعها ولا اختبار إرجاعها
-    barcodes = [b for b in dict.fromkeys(barcodes) if (stock_of(admin, b) or 0) >= 5]
+    # نستبعد ما لا يستطيع المندوب بيعه فعلًا: الرصيد يُقاس بعين المندوب لا
+    # بعين المدير — فالمخزون مقيَّد بمخزن كل مستخدم، والصنف الموجود عند
+    # المدير قد لا يكون في مخزن المندوب، فيعود Lookup بلا نتيجة وينكسر
+    # الاختبار على None بدل أن يفشل بسبب مفهوم.
+    barcodes = [b for b in dict.fromkeys(barcodes) if (stock_of(agent, b) or 0) >= 5]
     if len(barcodes) < 2:
         print("لم يتم العثور على باركودين للاختبار")
         return 1
@@ -161,7 +168,7 @@ def main():
 
     # الرقم يُكتب بالصيغة الدولية هنا، وسنبحث عنه لاحقًا بالصيغة المحلية
     status, inv = agent.post_json("/Pos/Checkout", {
-        "customerName": "عميل الاختبار",
+        "customerName": "سمير عبد اللطيف",
         "customerPhone": "+201001234567",
         "items": [
             {"productId": p1["id"], "quantity": 3},
@@ -174,7 +181,7 @@ def main():
     invoice_total = inv.get("total", 0)
     check("الفاتورة لها رقم مرجعي", bool(invoice_no), invoice_no)
 
-    stock1_after_sale = stock_of(admin, bc1)
+    stock1_after_sale = stock_of(agent, bc1)
     check("خصم المخزون بعد البيع (3 قطع)",
           stock1_after_sale == stock1_before - 3,
           f"{stock1_before} -> {stock1_after_sale}")
@@ -184,31 +191,41 @@ def main():
     # ================================================================
     _, cust_list, _ = admin.get("/Customers")
     check("صفحة العملاء تُفتح", "العملاء" in cust_list)
-    check("اسم العميل يظهر في القائمة", "عميل الاختبار" in cust_list)
+    check("اسم العميل يظهر في القائمة", "سمير عبد اللطيف" in cust_list)
     check("رقم هاتف العميل يظهر في القائمة", "201001234567" in cust_list.replace("+", ""))
 
     # البحث بالصيغة المحلية عن رقم أُدخل بالصيغة الدولية — جوهر التوحيد
     _, search_local, _ = admin.get("/Customers?q=01001234567")
     check("البحث بالصيغة المحلية يجد رقمًا مُدخلًا بصيغة دولية",
-          "عميل الاختبار" in search_local)
+          "سمير عبد اللطيف" in search_local)
 
     _, search_spaced, _ = admin.get("/Customers?" + urllib.parse.urlencode({"q": "0100 123 4567"}))
-    check("البحث برقم فيه مسافات يجد العميل", "عميل الاختبار" in search_spaced)
+    check("البحث برقم فيه مسافات يجد العميل", "سمير عبد اللطيف" in search_spaced)
 
-    m = re.search(r'/Customers/Details/(\d+)', cust_list)
-    customer_id = m.group(1) if m else None
+    # المعرّف يُقرأ من صف العميل بمطابقة *الرقم* لا الاسم: أكثر من ملف اختبار
+    # ينشئ عميلًا بالاسم «سمير عبد اللطيف» بأرقام مختلفة، والرقم هو ما يميّز
+    # العميل في النظام. المطابقة بالاسم تفتح تفاصيل شخصٍ آخر فيُنسب الفشل
+    # لصفحةٍ سليمة. ونصفّي القائمة بالبحث أولًا لتقليل الصفوف المرشَّحة.
+    _, mine, _ = admin.get("/Customers?q=01001234567")
+    customer_id = None
+    for row in mine.split("<tr")[1:]:
+        if "1001234567" in row.replace("+", "").replace(" ", ""):
+            m = re.search(r'/Customers/Details/(\d+)', row)
+            if m:
+                customer_id = m.group(1)
+                break
     check("رابط تفاصيل العميل موجود", bool(customer_id))
 
     if customer_id:
         _, cust_details, _ = admin.get(f"/Customers/Details/{customer_id}")
-        check("صفحة تفاصيل العميل تعرض اسمه", "عميل الاختبار" in cust_details)
+        check("صفحة تفاصيل العميل تعرض اسمه", "سمير عبد اللطيف" in cust_details)
         check("صفحة تفاصيل العميل تعرض رقمه", "1001234567" in cust_details)
         check("صفحة تفاصيل العميل تعرض فواتيره", invoice_no in cust_details)
 
     # الإكمال التلقائي داخل نافذة الفاتورة
     _, sugg = agent.get_json("/Customers/Suggest?term=010012")
     check("الإكمال التلقائي يُعيد العميل المطابق",
-          isinstance(sugg, list) and any("عميل الاختبار" == s.get("name") for s in sugg),
+          isinstance(sugg, list) and any("سمير عبد اللطيف" == s.get("name") for s in sugg),
           str(sugg)[:200])
 
     # ================================================================
@@ -252,12 +269,12 @@ def main():
     check("تنفيذ المرتجع يُعيد توجيهًا لصفحة المرتجع",
           status in (302, 303) and "/Returns/Details" in loc, f"status={status} loc={loc}")
 
-    stock1_after_return = stock_of(admin, bc1)
+    stock1_after_return = stock_of(agent, bc1)
     check("المخزون زاد بمقدار القطعة المُرجَعة (إعادة للمخزون)",
           stock1_after_return == stock1_after_sale + 1,
           f"{stock1_after_sale} -> {stock1_after_return}")
 
-    stock2_now = stock_of(admin, bc2)
+    stock2_now = stock_of(agent, bc2)
     check("المنتج غير المُرجَع لم يتغيّر مخزونه",
           stock2_now == stock2_before - 2,
           f"expected {stock2_before - 2}, got {stock2_now}")
@@ -300,13 +317,13 @@ def main():
         (f"Items[{item_ids2[0][0]}].InvoiceItemId", item_ids2[0][1]),
         (f"Items[{item_ids2[0][0]}].Quantity", "99"),
     ]
-    stock_before_over = stock_of(admin, bc1)
+    stock_before_over = stock_of(agent, bc1)
     status, _, headers = agent.post_form("/Returns/Confirm", over)
     loc_over = headers.get("Location", "")
     check("إرجاع كمية أكبر من المتبقي يُرفض",
           "/Returns/Create" in loc_over, f"loc={loc_over}")
     check("المخزون لم يتغيّر بعد الرفض",
-          stock_of(admin, bc1) == stock_before_over,
+          stock_of(agent, bc1) == stock_before_over,
           "تغيّر المخزون رغم رفض العملية")
 
     # مرتجع بلا أصناف
@@ -347,9 +364,9 @@ def main():
           f"loc={headers.get('Location','')}")
 
     check("المخزون عاد لرصيده الأصلي بالكامل",
-          stock_of(admin, bc1) == stock1_before and stock_of(admin, bc2) == stock2_before,
-          f"{bc1}: {stock_of(admin, bc1)} vs {stock1_before}, "
-          f"{bc2}: {stock_of(admin, bc2)} vs {stock2_before}")
+          stock_of(agent, bc1) == stock1_before and stock_of(agent, bc2) == stock2_before,
+          f"{bc1}: {stock_of(agent, bc1)} vs {stock1_before}, "
+          f"{bc2}: {stock_of(agent, bc2)} vs {stock2_before}")
 
     _, inv_after, _ = agent.get(f"/AgentReports/Details/{invoice_id}")
     check("حالة الفاتورة صارت «مرتجعة بالكامل»", "مرتجعة بالكامل" in inv_after)

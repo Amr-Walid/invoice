@@ -10,11 +10,15 @@ namespace PosSystem.Web.Data;
 public static class DbSeeder
 {
     public const string AdminEmail = "admin@pos.local";
-    public const string AdminPassword = "Admin@123";
     public const string AgentEmail = "agent@pos.local";
-    public const string AgentPassword = "Agent@123";
     public const string KeeperEmail = "keeper@pos.local";
-    public const string KeeperPassword = "Keeper@123";
+
+    // كلمات سر التطوير فقط. في الإنتاج تُقرأ من الإعدادات/متغيّرات البيئة
+    // (Seed:AdminPassword …)، ويرفض النظام الإقلاع لو تُركت الافتراضية.
+    // انظر ResolvePassword أدناه.
+    public const string DefaultAdminPassword = "Admin@123";
+    public const string DefaultAgentPassword = "Agent@123";
+    public const string DefaultKeeperPassword = "Keeper@123";
 
     public static async Task SeedAsync(IServiceProvider services)
     {
@@ -24,6 +28,8 @@ public static class DbSeeder
         var db = sp.GetRequiredService<AppDbContext>();
         var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
         var roleManager = sp.GetRequiredService<RoleManager<IdentityRole>>();
+        var config = sp.GetRequiredService<IConfiguration>();
+        var env = sp.GetRequiredService<IHostEnvironment>();
         var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
 
         // الهجرات (Migrations) مُولَّدة لـ SQL Server وهو المزوّد الأساسي للنظام.
@@ -34,18 +40,67 @@ public static class DbSeeder
         else
             await db.Database.MigrateAsync();
 
+        // Seed:Enabled=false يوقف التهيئة كليًا بعد أول إقلاع ناجح في الإنتاج
+        // إن رغب العميل — القاعدة عندها تكون قائمة بحساباتها الحقيقية.
+        if (!config.GetValue("Seed:Enabled", true))
+        {
+            logger.LogInformation("التهيئة الأولية مُعطَّلة (Seed:Enabled=false).");
+            return;
+        }
+
+        // البيانات التجريبية (منتجات Infinix والكوبونات) مفيدة للتجربة وكارثية
+        // في الإنتاج: العميل يفتح النظام فيجد أصنافًا ليست له وكوبونات خصم
+        // فعّالة يمكن استخدامها في بيع حقيقي. الافتراضي: مُفعَّلة خارج الإنتاج فقط.
+        var demoData = config.GetValue("Seed:DemoData", !env.IsProduction());
+
         await SeedRolesAsync(roleManager);
         // المخزن قبل المستخدمين وقبل المنتجات: المندوب يُربط بمخزن
         // والمنتج يحتاج مخزنًا يودِع فيه رصيده الافتتاحي.
         var mainWarehouse = await SeedWarehouseAsync(db);
-        await SeedUsersAsync(userManager, logger, mainWarehouse);
-        await SeedCatalogAsync(db);
-        await SeedCouponsAsync(db);
+        await SeedUsersAsync(userManager, logger, config, env, mainWarehouse);
+
+        if (demoData)
+        {
+            await SeedCatalogAsync(db);
+            await SeedCouponsAsync(db);
+        }
+        else
+        {
+            // العلامة التجارية والتصنيفات مطلوبة في المتطلبات وليست «بيانات
+            // تجريبية»: شاشة إضافة منتج تحتاج تصنيفًا موجودًا وإلا تعذّر على
+            // العميل إدخال أول صنف له. أما المنتجات والكوبونات فلا تُنشأ.
+            await SeedBrandAndCategoriesAsync(db);
+            logger.LogInformation("وضع الإنتاج: لم تُدرج منتجات ولا كوبونات تجريبية.");
+        }
+
         // بعد المنتجات: مزامنة أرصدة المخزن مع الكاش القديم
         await SeedProductStocksAsync(db, mainWarehouse, logger);
 
         await db.SaveChangesAsync();
         logger.LogInformation("تمت تهيئة البيانات الأولية بنجاح.");
+    }
+
+    /// <summary>
+    /// يحدّد كلمة سر حساب التهيئة. في الإنتاج لا يُسمح بالافتراضية إطلاقًا:
+    /// حساب مدير بكلمة سر منشورة في مستودع عام = النظام مفتوح للجميع.
+    /// نُفشل الإقلاع بدل أن نكتب في السجل تحذيرًا لا يقرأه أحد.
+    /// </summary>
+    private static string ResolvePassword(
+        IConfiguration config, IHostEnvironment env, string key, string devDefault)
+    {
+        var configured = config[$"Seed:{key}"];
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured;
+
+        if (env.IsProduction())
+        {
+            throw new InvalidOperationException(
+                $"كلمة سر حساب التهيئة غير مضبوطة في الإنتاج. " +
+                $"اضبط متغيّر البيئة Seed__{key} بكلمة سر قوية قبل التشغيل. " +
+                $"(الافتراضية معروفة للجميع ولا يُسمح بها في الإنتاج.)");
+        }
+
+        return devDefault;
     }
 
     private static async Task SeedRolesAsync(RoleManager<IdentityRole> roleManager)
@@ -165,15 +220,19 @@ public static class DbSeeder
     }
 
     private static async Task SeedUsersAsync(
-        UserManager<ApplicationUser> userManager, ILogger logger, Warehouse mainWarehouse)
+        UserManager<ApplicationUser> userManager, ILogger logger,
+        IConfiguration config, IHostEnvironment env, Warehouse mainWarehouse)
     {
         // الأدمن بلا مخزن (null = كل المخازن)، والمندوب مربوط بالرئيسي
         // وإلا لما قدر على البيع.
-        await EnsureUserAsync(userManager, logger, AdminEmail, AdminPassword,
+        await EnsureUserAsync(userManager, logger, AdminEmail,
+            ResolvePassword(config, env, "AdminPassword", DefaultAdminPassword),
             "مدير النظام", AppRoles.Admin, warehouseId: null);
-        await EnsureUserAsync(userManager, logger, AgentEmail, AgentPassword,
+        await EnsureUserAsync(userManager, logger, AgentEmail,
+            ResolvePassword(config, env, "AgentPassword", DefaultAgentPassword),
             "مندوب المبيعات", AppRoles.Agent, warehouseId: mainWarehouse.Id);
-        await EnsureUserAsync(userManager, logger, KeeperEmail, KeeperPassword,
+        await EnsureUserAsync(userManager, logger, KeeperEmail,
+            ResolvePassword(config, env, "KeeperPassword", DefaultKeeperPassword),
             "أمين المخزن", AppRoles.WarehouseKeeper, warehouseId: mainWarehouse.Id);
     }
 
@@ -218,7 +277,12 @@ public static class DbSeeder
     /// البيانات المطلوبة افتراضيًا: البراند Infinix
     /// والتصنيفات التابعة Smartwatches / Smartphones / Power banks
     /// </summary>
-    private static async Task SeedCatalogAsync(AppDbContext db)
+    /// <summary>
+    /// العلامة «Infinix» وتصنيفاتها الثلاثة — مطلوبة في المتطلبات، ويحتاجها
+    /// نموذج إضافة المنتج (لا يمكن حفظ صنف بلا تصنيف). لذلك تُنشأ حتى في
+    /// الإنتاج حيث تُمنع المنتجات والكوبونات التجريبية.
+    /// </summary>
+    private static async Task<Brand> SeedBrandAndCategoriesAsync(AppDbContext db)
     {
         var infinix = await db.Brands.FirstOrDefaultAsync(b => b.Name == "Infinix");
         if (infinix is null)
@@ -235,6 +299,13 @@ public static class DbSeeder
                 db.Categories.Add(new Category { Name = name, BrandId = infinix.Id, IsActive = true });
         }
         await db.SaveChangesAsync();
+
+        return infinix;
+    }
+
+    private static async Task SeedCatalogAsync(AppDbContext db)
+    {
+        var infinix = await SeedBrandAndCategoriesAsync(db);
 
         // منتجات تجريبية — فقط إن كانت قاعدة البيانات فارغة من المنتجات
         if (!await db.Products.AnyAsync())

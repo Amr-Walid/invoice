@@ -62,4 +62,12 @@ public static class AppRoles
 
     /// <summary>الأدوار التي تدير المخازن — تُستخدم في سمات [Authorize]</summary>
     public const string AdminOrKeeper = Admin + "," + WarehouseKeeper;
+
+    /// <summary>
+    /// الأدوار التي تبيع: المندوب أصلًا والمدير عند الحاجة. أمين المخزن
+    /// خارجها عن قصد — عمله البضاعة وحركتها لا الفواتير ولا العملاء.
+    /// وجود الثابت ضروري: <c>[Authorize]</c> المجرّدة تعني «أي مستخدم داخل»
+    /// فكان أمين المخزن يفتح نقطة البيع ويُصدر فاتورة فعليًا.
+    /// </summary>
+    public const string AdminOrAgent = Admin + "," + Agent;
 }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PosSystem.Web.Data;
@@ -90,7 +91,29 @@ builder.Services.AddSingleton<IBarcodeService, BarcodeService>();
 
 builder.Services.AddControllersWithViews();
 
+// ============================================================
+// خلف عاكس عكسي (IIS / Nginx / Apache)
+// بدون هذا يرى التطبيق كل الطلبات على أنها http ومن عنوان العاكس،
+// فتفشل إعادة التوجيه إلى https ويُسجَّل عنوان واحد لكل المستخدمين.
+// ============================================================
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // العاكس داخل الشبكة نفسها؛ القائمة الفارغة تعني «ثق بالعاكس المحلي».
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+// فحص صحة للمراقبة وموازِن الأحمال: يتحقق من الوصول الفعلي لقاعدة البيانات
+// لا من كون العملية حيّة فقط — تطبيق يعمل بقاعدة مقطوعة ليس «سليمًا».
+// كُتب يدويًا بدل حزمة EFCore.HealthChecks تفاديًا لاعتماد إضافي.
+builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
+
 var app = builder.Build();
+
+// أول ما يُنفَّذ: لا شيء قبله يعتمد على البروتوكول الأصلي.
+app.UseForwardedHeaders();
 
 // ============================================================
 // التوطين: عرض الأرقام والتواريخ بصيغة ثابتة (أرقام لاتينية)
@@ -104,6 +127,10 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
+    // خلف عاكس (IIS/Nginx) الطلب يصل بـ http، فبدون التحويل تُرسل كوكي
+    // الجلسة على اتصال غير مشفّر. UseForwardedHeaders أعلاه يضمن أن
+    // ASP.NET يعرف البروتوكول الأصلي فلا يقع في حلقة إعادة توجيه.
+    app.UseHttpsRedirection();
 }
 
 app.UseStaticFiles();
@@ -114,6 +141,9 @@ app.UseAuthorization();
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// نقطة فحص الصحة — تُستخدم للمراقبة وموازِن الأحمال، ولا تتطلب تسجيل دخول.
+app.MapHealthChecks("/health").AllowAnonymous();
 
 // ============================================================
 // تهيئة قاعدة البيانات والبيانات الأولية
@@ -127,7 +157,13 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "فشل تهيئة قاعدة البيانات. تحقق من سلسلة الاتصال.");
+        logger.LogCritical(ex, "فشل تهيئة قاعدة البيانات. تحقق من سلسلة الاتصال.");
+
+        // في الإنتاج لا يجوز الاستمرار: تطبيق يعمل بقاعدة لم تُهيَّأ يستقبل
+        // المستخدمين ثم ينهار عند أول عملية بيع، ويظهر «سليم» أمام المراقبة.
+        // الفشل الصريح عند الإقلاع أرخص كثيرًا من فشل صامت أثناء العمل.
+        if (app.Environment.IsProduction())
+            throw;
     }
 }
 

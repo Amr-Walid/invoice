@@ -10,7 +10,14 @@ namespace PosSystem.Web.Controllers;
 /// <summary>
 /// واجهة نقطة البيع. متاحة للمندوب والمدير (المدير قد يحتاج البيع أيضًا).
 /// </summary>
-[Authorize]
+///
+/// <para>
+/// الأدوار مُقيَّدة صراحةً: <c>[Authorize]</c> المجرّدة كانت تعني «أي مستخدم
+/// مسجَّل»، فكان أمين المخزن — وهو ليس بائعًا — يفتح الشاشة ويُصدر فاتورة
+/// كاملة تُخصم من رصيد مخزنه. القائمة الجانبية لا تُظهر له الرابط، لكن إخفاء
+/// الرابط ليس صلاحية: الطلب المباشر على <c>/Pos/Checkout</c> كان ينجح.
+/// </para>
+[Authorize(Roles = AppRoles.AdminOrAgent)]
 public class PosController : Controller
 {
     private readonly IPosService _pos;

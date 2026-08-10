@@ -14,8 +14,10 @@ namespace PosSystem.Web.Controllers;
 ///    «إضافة عميل» منفصلة — العميل يُنشأ بمجرد كتابة رقمه في الفاتورة.
 ///  • المندوب يرى العملاء لكن الفواتير المعروضة في صفحة العميل هي فواتيره
 ///    هو فقط، تماشيًا مع قاعدة عزل بيانات المندوب المطبَّقة في كل النظام.
+///  • أمين المخزن خارج هذه الشاشة: بيانات العملاء وأرقام هواتفهم وتاريخ
+///    مشترياتهم ليست من عمله، وعمله كله على الأصناف والكميات.
 /// </summary>
-[Authorize]
+[Authorize(Roles = AppRoles.AdminOrAgent)]
 public class CustomersController : Controller
 {
     private const int PageSize = 20;
